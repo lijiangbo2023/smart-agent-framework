@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.smart.agent.persistence.mapper.AgentConversationSessionMapper">
+
+  <insert id="insertOrIgnore">
+    INSERT INTO agent_conversation_session_mapper
+        (user_id, conversation_id, current_session_id
+        <if test="conversationType != null">
+            , conversation_type
+        </if>
+        <if test="businessName != null">
+            , business_name
+        </if>
+        )
+    VALUES
+        (#{userId}, #{conversationId}, #{currentSessionId}
+        <if test="conversationType != null">
+            , #{conversationType}
+        </if>
+        <if test="businessName != null">
+            , #{businessName}
+        </if>
+        )
+    ON DUPLICATE KEY UPDATE
+        current_session_id = current_session_id
+  </insert>
+
+  <insert id="upsert">
+    INSERT INTO agent_conversation_session_mapper
+        (user_id, conversation_id, current_session_id
+        <if test="conversationType != null">
+            , conversation_type
+        </if>
+        <if test="businessName != null">
+            , business_name
+        </if>
+        )
+    VALUES
+        (#{userId}, #{conversationId}, #{currentSessionId}
+        <if test="conversationType != null">
+            , #{conversationType}
+        </if>
+        <if test="businessName != null">
+            , #{businessName}
+        </if>
+        )
+    ON DUPLICATE KEY UPDATE
+        current_session_id = VALUES(current_session_id)
+  </insert>
+
+</mapper>

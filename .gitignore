@@ -1,0 +1,52 @@
+# Build output
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+.flattened-pom.xml
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+application-local.yml
+application-local.properties
+
+# Logs
+logs/
+*.log
+
+# Node / Frontend
+smart-agent-ui/node_modules/
+smart-agent-ui/dist/
+smart-agent-ui/.env.local
+
+# Misc
+*.bak
+*.tmp
+*.orig
+.claude/
