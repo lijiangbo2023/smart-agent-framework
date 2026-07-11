@@ -20,9 +20,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Milvus向量数据库存储服务
+ * Milvus vector database storage service.
  *
- * @description 封装Milvus向量数据库的连接管理、数据插入和相似性搜索操作，为RAG检索提供向量存储能力
+ * @description Encapsulates Milvus vector database connection management, data insertion,
+ *              and similarity search operations, providing vector storage for RAG retrieval.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -49,9 +50,10 @@ public class MilvusVectorStore {
     private MilvusClientV2 client;
 
     /**
-     * 初始化Milvus客户端连接
+     * Initialize Milvus client connection.
      *
-     * @description 在Bean初始化后自动连接Milvus服务，连接失败时禁用RAG功能
+     * @description Automatically connects to the Milvus service after Bean initialization.
+     *              Disables RAG functionality on connection failure.
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -70,9 +72,9 @@ public class MilvusVectorStore {
     }
 
     /**
-     * 关闭Milvus客户端连接
+     * Close Milvus client connection.
      *
-     * @description 在Bean销毁前释放Milvus客户端资源
+     * @description Releases Milvus client resources before Bean destruction.
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -84,13 +86,14 @@ public class MilvusVectorStore {
     }
 
     /**
-     * 插入向量数据
+     * Insert vector data.
      *
-     * @description 将文本及其对应的向量数据插入Milvus集合中，支持附加元数据
-     * @param id 文档唯一标识
-     * @param text 原始文本内容
-     * @param vector 文本对应的嵌入向量
-     * @param metadata 附加元数据键值对，可为null
+     * @description Inserts text and its corresponding vector data into the Milvus collection,
+     *              with optional metadata.
+     * @param id document unique identifier
+     * @param text original text content
+     * @param vector embedding vector for the text
+     * @param metadata additional metadata key-value pairs; may be null
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -100,7 +103,11 @@ public class MilvusVectorStore {
             JsonObject data = new JsonObject();
             data.addProperty("id", id);
             data.addProperty("text", text);
-            data.add("vector", com.google.gson.JsonParser.parseString(vector.toString()));
+            com.google.gson.JsonArray vectorArray = new com.google.gson.JsonArray();
+            for (Float f : vector) {
+                vectorArray.add(f);
+            }
+            data.add("vector", vectorArray);
             if (metadata != null) {
                 metadata.forEach((k, v) -> data.addProperty(k, String.valueOf(v)));
             }
@@ -115,11 +122,12 @@ public class MilvusVectorStore {
     }
 
     /**
-     * 向量相似性搜索
+     * Vector similarity search.
      *
-     * @description 使用默认topK值在Milvus集合中执行向量相似性搜索
-     * @param queryVector 查询向量
-     * @return 按相似度排序的搜索结果列表
+     * @description Performs vector similarity search in the Milvus collection
+     *              using the default topK value.
+     * @param queryVector query vector
+     * @return similarity-sorted list of search results
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -128,13 +136,14 @@ public class MilvusVectorStore {
     }
 
     /**
-     * 向量相似性搜索（带参数）
+     * Vector similarity search (with parameters).
      *
-     * @description 在Milvus集合中执行向量相似性搜索，支持自定义topK和过滤条件
-     * @param queryVector 查询向量
-     * @param topK 返回结果的最大数量
-     * @param filter Milvus过滤表达式，可为null
-     * @return 按相似度排序的搜索结果列表
+     * @description Performs vector similarity search in the Milvus collection
+     *              with custom topK and filter expression support.
+     * @param queryVector query vector
+     * @param topK maximum number of results to return
+     * @param filter Milvus filter expression; may be null
+     * @return similarity-sorted list of search results
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -167,9 +176,10 @@ public class MilvusVectorStore {
     }
 
     /**
-     * 搜索结果记录
+     * Search result record.
      *
-     * @description 封装Milvus向量搜索返回的单条结果，包含文档ID、文本内容和相似度得分
+     * @description Encapsulates a single result from Milvus vector search,
+     *              including document ID, text content, and similarity score.
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0

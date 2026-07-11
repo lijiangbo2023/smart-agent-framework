@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 import java.util.Date;
 
 /**
- * Agent聊天消息实体
+ * Agent chat message entity
  *
- * @description 对应agent_chat_message表，记录Agent与用户的聊天消息，包含用户输入、Agent输出、
- *              会话信息、渠道、反馈等字段。
+ * @description Maps to the agent_chat_message table, recording chat messages between Agent and users,
+ *              including user input, agent output, session info, channel, feedback and other fields.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0

@@ -6,10 +6,10 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * Agent会话映射Mapper
+ * Agent conversation session Mapper
  *
- * @description 基于MyBatis-Plus的会话映射数据访问接口，提供对agent_conversation_session_mapper表的
- *              CRUD操作，并扩展了insertOrIgnore和upsert方法。
+ * @description MyBatis-Plus based conversation session data access interface, providing CRUD operations
+ *              on the agent_conversation_session_mapper table, with extended insertOrIgnore and upsert methods.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -18,15 +18,16 @@ import org.apache.ibatis.annotations.Param;
 public interface AgentConversationSessionMapper extends BaseMapper<AgentConversationSessionEntity> {
 
     /**
-     * 插入会话映射记录（忽略冲突）
+     * Insert a conversation session mapping record (ignore on conflict)
      *
-     * @description 插入一条会话与Session的映射记录，若记录已存在则忽略，不抛出异常。
-     * @param userId 用户ID
-     * @param conversationId 会话ID
-     * @param currentSessionId 当前Session ID
-     * @param conversationType 会话类型
-     * @param businessName 业务名称
-     * @return 受影响的行数
+     * @description Inserts a conversation-to-session mapping record; if the record already exists,
+     *              it is silently ignored without throwing an exception.
+     * @param userId user ID
+     * @param conversationId conversation ID
+     * @param currentSessionId current session ID
+     * @param conversationType conversation type
+     * @param businessName business name
+     * @return number of affected rows
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -37,15 +38,16 @@ public interface AgentConversationSessionMapper extends BaseMapper<AgentConversa
                        @Param("businessName") String businessName);
 
     /**
-     * 插入或更新会话映射记录
+     * Insert or update a conversation session mapping record
      *
-     * @description 插入一条会话与Session的映射记录，若记录已存在则更新currentSessionId等字段。
-     * @param userId 用户ID
-     * @param conversationId 会话ID
-     * @param currentSessionId 当前Session ID
-     * @param conversationType 会话类型
-     * @param businessName 业务名称
-     * @return 受影响的行数
+     * @description Inserts a conversation-to-session mapping record; if the record already exists,
+     *              updates the currentSessionId and related fields.
+     * @param userId user ID
+     * @param conversationId conversation ID
+     * @param currentSessionId current session ID
+     * @param conversationType conversation type
+     * @param businessName business name
+     * @return number of affected rows
      * @author Jiangbo Li
      * @date 2026-06-10
      */

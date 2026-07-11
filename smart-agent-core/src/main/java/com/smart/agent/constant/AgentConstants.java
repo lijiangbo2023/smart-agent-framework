@@ -1,9 +1,9 @@
 package com.smart.agent.constant;
 
 /**
- * Agent常量类
+ * Agent constants.
  *
- * @description 定义Agent框架中使用的全局常量，包括会话管理和模型配置相关的常量
+ * @description Defines global constants used in the Agent framework, including session management and model configuration constants
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -13,9 +13,9 @@ public class AgentConstants {
     public static final String SESSION_COMPOSITE_KEY_SEPARATOR = "::";
 
     /**
-     * 模型常量类
+     * Model constants.
      *
-     * @description 定义Agent使用的各类模型名称常量，包括默认模型、快速模型和轻量模型
+     * @description Defines model name constants used by the Agent, including the default model, fast model, and lightweight model
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0

@@ -1,17 +1,27 @@
 package com.smart.agent.service;
 
+import com.smart.agent.util.SensitiveUtils;
 import com.smart.agent.constant.enums.FeedbackType;
 import com.smart.agent.constant.enums.MessageChannel;
 import com.smart.agent.constant.enums.MessageStatus;
 import com.smart.agent.persistence.entity.AgentChatMessageEntity;
 import com.smart.agent.persistence.mapper.AgentChatMessageMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
- * 智能体聊天消息服务
+ * Agent chat message service
  *
- * @description 管理智能体聊天消息的数据库操作，包括用户输入保存、智能体输出更新、反馈管理等功能
+ * @description Manages database operations for agent chat messages, including saving user input,
+ *              updating agent output, managing feedback and other features
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -27,50 +37,45 @@ public class AgentChatMessageService {
     }
 
     /**
-     * 保存用户输入消息
+     * Save user input message
      *
-     * @description 将用户的聊天输入持久化到数据库，初始状态为处理中
-     * @param sessionId 会话ID
-     * @param userId 用户ID
-     * @param userInput 用户输入内容
-     * @param channel 消息渠道
-     * @param businessName 业务名称
-     * @param conversationId 会话ID
-     * @param conversationType 会话类型
-     * @return 消息记录ID，保存失败时返回null
+     * @description Persists user chat input to the database with initial processing status
+     * @param sessionId session ID
+     * @param userId user ID
+     * @param userInput user input content
+     * @param channel message channel
+     * @param businessName business name
+     * @param conversationId conversation ID
+     * @param conversationType conversation type
+     * @return message record ID, or null if saving fails
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     public Long saveUserInput(String sessionId, String userId, String userInput,
                               MessageChannel channel, String businessName,
                               String conversationId, String conversationType) {
-        try {
-            AgentChatMessageEntity entity = AgentChatMessageEntity.builder()
-                    .sessionId(sessionId)
-                    .userId(userId)
-                    .userInput(userInput)
-                    .channel(channel.getCode())
-                    .businessName(businessName)
-                    .conversationId(conversationId)
-                    .conversationType(conversationType)
-                    .status(MessageStatus.PROCESSING.getCode())
-                    .feedbackType(FeedbackType.NONE.getCode())
-                    .build();
-            agentChatMessageMapper.insert(entity);
-            return entity.getId();
-        } catch (Exception e) {
-            log.error("saveUserInput failed, sessionId={}, userId={}", sessionId, userId, e);
-            return null;
-        }
+        AgentChatMessageEntity entity = AgentChatMessageEntity.builder()
+                .sessionId(sessionId)
+                .userId(userId)
+                .userInput(userInput)
+                .channel(channel.getCode())
+                .businessName(businessName)
+                .conversationId(conversationId)
+                .conversationType(conversationType)
+                .status(MessageStatus.PROCESSING.getCode())
+                .feedbackType(FeedbackType.NONE.getCode())
+                .build();
+        agentChatMessageMapper.insert(entity);
+        return entity.getId();
     }
 
     /**
-     * 更新智能体输出
+     * Update agent output
      *
-     * @description 更新指定消息记录的智能体回复内容和处理状态
-     * @param messageId 消息记录ID
-     * @param agentOutput 智能体输出内容
-     * @param status 消息处理状态
+     * @description Updates the agent reply content and processing status for the specified message record
+     * @param messageId message record ID
+     * @param agentOutput agent output content
+     * @param status message processing status
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -90,22 +95,22 @@ public class AgentChatMessageService {
     }
 
     /**
-     * 更新消息反馈
+     * Update message feedback
      *
-     * @description 更新消息的用户反馈状态，支持点赞/点踩的切换操作（再次点击相同操作则取消）
-     * @param messageId 消息记录ID
-     * @param action 反馈动作（like/dislike）
-     * @param currentStatus 当前反馈状态
-     * @return 更新后的反馈状态
+     * @description Updates the user feedback status for a message, supporting like/dislike toggle
+     *              (clicking the same action again cancels it)
+     * @param messageId message record ID
+     * @param action feedback action (like/dislike)
+     * @param currentStatus current feedback status
+     * @return updated feedback status
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     public String updateFeedback(Long messageId, String action, String currentStatus) {
-        String newStatus = action.equals(currentStatus) ? "none" : action;
-
         if (messageId == null) {
-            return newStatus;
+            throw new IllegalArgumentException("messageId is required");
         }
+        String newStatus = action.equals(currentStatus) ? "none" : action;
 
         try {
             FeedbackType feedbackType = switch (newStatus) {
@@ -126,11 +131,11 @@ public class AgentChatMessageService {
     }
 
     /**
-     * 更新反馈评论
+     * Update feedback comment
      *
-     * @description 更新指定消息记录的用户反馈评论内容
-     * @param messageId 消息记录ID
-     * @param feedbackComment 反馈评论内容
+     * @description Updates the user feedback comment content for the specified message record
+     * @param messageId message record ID
+     * @param feedbackComment feedback comment content
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -150,11 +155,11 @@ public class AgentChatMessageService {
     }
 
     /**
-     * 更新流程查询键
+     * Update process query key
      *
-     * @description 更新指定消息记录的流程查询键，用于关联业务流程
-     * @param messageId 消息记录ID
-     * @param processQueryKey 流程查询键
+     * @description Updates the process query key for the specified message record, used to correlate business processes
+     * @param messageId message record ID
+     * @param processQueryKey process query key
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -169,6 +174,117 @@ public class AgentChatMessageService {
             agentChatMessageMapper.updateById(entity);
         } catch (Exception e) {
             log.error("updateProcessQueryKey failed, messageId={}, processQueryKey={}", messageId, processQueryKey, e);
+        }
+    }
+
+    /**
+     * Paginated query of user conversation history
+     *
+     * @description Returns paginated results in descending order by creation time,
+     *              with agentOutput masked for sensitive information
+     * @param userId user ID
+     * @param page page number (starting from 1)
+     * @param size page size
+     * @return result Map containing records, total, page, size and pages.
+     *         Each record contains: id, sessionId, userInput, agentOutput (masked), status,
+     *         feedbackType, gmtCreate, conversationId
+     * @author Jiangbo Li
+     * @date 2026-06-16
+     */
+    public Map<String, Object> getHistoryPage(String userId, int page, int size) {
+        LambdaQueryWrapper<AgentChatMessageEntity> wrapper = new LambdaQueryWrapper<AgentChatMessageEntity>()
+                .eq(AgentChatMessageEntity::getUserId, userId)
+                .orderByDesc(AgentChatMessageEntity::getGmtCreate);
+        IPage<AgentChatMessageEntity> pageResult = agentChatMessageMapper.selectPage(
+                new Page<>(page, size), wrapper);
+
+        List<Map<String, Object>> records = pageResult.getRecords().stream().map(m -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", m.getId());
+            map.put("sessionId", m.getSessionId());
+            map.put("userInput", m.getUserInput());
+            map.put("agentOutput", m.getAgentOutput() != null ? SensitiveUtils.mask(m.getAgentOutput()) : null);
+            map.put("status", m.getStatus());
+            map.put("feedbackType", m.getFeedbackType());
+            map.put("gmtCreate", m.getGmtCreate());
+            map.put("conversationId", m.getConversationId());
+            return map;
+        }).toList();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("records", records);
+        result.put("total", pageResult.getTotal());
+        result.put("page", pageResult.getCurrent());
+        result.put("size", pageResult.getSize());
+        result.put("pages", pageResult.getPages());
+        return result;
+    }
+
+    /**
+     * Get all messages for a given session
+     *
+     * @description Returns all messages in the session in ascending order by creation time,
+     *              with agentOutput masked for sensitive information
+     * @param userId user ID
+     * @param sessionId session ID
+     * @return list of messages (converted to Map, containing id, userInput, agentOutput, status,
+     *         feedbackType, gmtCreate)
+     * @author Jiangbo Li
+     * @date 2026-06-16
+     */
+    public List<Map<String, Object>> getConversationMessages(String userId, String sessionId) {
+        LambdaQueryWrapper<AgentChatMessageEntity> wrapper = new LambdaQueryWrapper<AgentChatMessageEntity>()
+                .eq(AgentChatMessageEntity::getUserId, userId)
+                .eq(AgentChatMessageEntity::getSessionId, sessionId)
+                .orderByAsc(AgentChatMessageEntity::getGmtCreate);
+        return agentChatMessageMapper.selectList(wrapper).stream().map(m -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", m.getId());
+            map.put("userInput", m.getUserInput());
+            map.put("agentOutput", m.getAgentOutput() != null ? SensitiveUtils.mask(m.getAgentOutput()) : null);
+            map.put("status", m.getStatus());
+            map.put("feedbackType", m.getFeedbackType());
+            map.put("gmtCreate", m.getGmtCreate());
+            return map;
+        }).toList();
+    }
+
+    /**
+     * Get the userId that owns a specific message.
+     *
+     * @description Queries the userId associated with the given messageId for ownership validation
+     * @param messageId message record ID
+     * @return the userId that owns the message, or null if not found
+     * @author Jiangbo Li
+     * @date 2026-07-11
+     */
+    public String getMessageOwner(Long messageId) {
+        if (messageId == null) {
+            return null;
+        }
+        AgentChatMessageEntity entity = agentChatMessageMapper.selectById(messageId);
+        return entity != null ? entity.getUserId() : null;
+    }
+
+    /**
+     * Clean up expired message records (with LIMIT to avoid long-running transactions)
+     *
+     * @description Deletes up to {@code limit} message records earlier than the specified date
+     * @param cutoffDate cutoff date
+     * @param limit maximum number of records to delete per call
+     * @return number of deleted records
+     * @author Jiangbo Li
+     * @date 2026-06-16
+     */
+    public int cleanupExpiredMessages(Date cutoffDate, int limit) {
+        try {
+            LambdaQueryWrapper<AgentChatMessageEntity> wrapper = new LambdaQueryWrapper<AgentChatMessageEntity>()
+                    .lt(AgentChatMessageEntity::getGmtCreate, cutoffDate)
+                    .last("LIMIT " + limit);
+            return agentChatMessageMapper.delete(wrapper);
+        } catch (Exception e) {
+            log.error("cleanupExpiredMessages failed", e);
+            return 0;
         }
     }
 }

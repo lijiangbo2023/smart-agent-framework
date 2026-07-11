@@ -1,8 +1,8 @@
 package com.smart.agent.dingtalk;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
 import com.smart.agent.constant.CardCallbackConstants;
 import com.smart.agent.model.CardDeliveryResult;
 import com.smart.agent.nacos.SystemConfigManager;
@@ -19,9 +19,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 钉钉AI卡片服务
+ * DingTalk AI card service.
  *
- * @description 提供钉钉AI互动卡片的创建、投放、流式更新以及卡片数据更新等功能
+ * @description Provides DingTalk AI interactive card capabilities including creation,
+ *              delivery, streaming updates, and card data updates.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -64,14 +65,15 @@ public class DingTalkAiCardService {
     }
 
     /**
-     * 创建并投放AI卡片
+     * Create and deliver an AI card.
      *
-     * @description 根据会话类型创建钉钉AI互动卡片并投放至单聊或群聊，返回卡片投放结果
-     * @param conversationType 会话类型，1为单聊，2为群聊
-     * @param openConversationId 开放会话ID，群聊时使用
-     * @param senderUserId 发送者用户ID
-     * @param extraParams 额外的卡片参数
-     * @return 卡片投放结果，包含outTrackId和processQueryKey；投放失败返回null
+     * @description Creates a DingTalk AI interactive card based on the conversation type and
+     *              delivers it to a single chat or group chat. Returns the card delivery result.
+     * @param conversationType conversation type: 1 for single chat, 2 for group chat
+     * @param openConversationId open conversation ID, used for group chat
+     * @param senderUserId sender user ID
+     * @param extraParams additional card parameters
+     * @return card delivery result containing outTrackId and processQueryKey; null on failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -145,12 +147,12 @@ public class DingTalkAiCardService {
     }
 
     /**
-     * 流式更新AI卡片内容（默认key）
+     * Stream-update AI card content (default key).
      *
-     * @description 使用默认的content键对AI卡片进行流式内容更新
-     * @param outTrackId 卡片外部跟踪ID
-     * @param fullContent 完整的更新内容
-     * @param isFinalize 是否为最终更新
+     * @description Performs a streaming content update on the AI card using the default content key.
+     * @param outTrackId card external tracking ID
+     * @param fullContent full updated content
+     * @param isFinalize whether this is the final update
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -159,13 +161,14 @@ public class DingTalkAiCardService {
     }
 
     /**
-     * 流式更新AI卡片内容（指定key）
+     * Stream-update AI card content (specified key).
      *
-     * @description 使用指定的key对AI卡片进行流式内容更新，支持全量替换模式
-     * @param outTrackId 卡片外部跟踪ID
-     * @param key 更新内容对应的键名
-     * @param fullContent 完整的更新内容
-     * @param isFinalize 是否为最终更新
+     * @description Performs a streaming content update on the AI card using the specified key,
+     *              supporting full replacement mode.
+     * @param outTrackId card external tracking ID
+     * @param key the key name corresponding to the updated content
+     * @param fullContent full updated content
+     * @param isFinalize whether this is the final update
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -192,11 +195,12 @@ public class DingTalkAiCardService {
     }
 
     /**
-     * 按键更新卡片公共数据
+     * Update card public data by key.
      *
-     * @description 根据指定的键值对增量更新AI卡片的公共数据区域
-     * @param outTrackId 卡片外部跟踪ID
-     * @param updates 需要更新的键值对
+     * @description Incrementally updates the public data area of the AI card
+     *              based on the specified key-value pairs.
+     * @param outTrackId card external tracking ID
+     * @param updates key-value pairs to update
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -216,12 +220,13 @@ public class DingTalkAiCardService {
     }
 
     /**
-     * 按键更新卡片用户私有数据
+     * Update card user private data by key.
      *
-     * @description 根据指定的键值对增量更新AI卡片中指定用户的私有数据区域
-     * @param outTrackId 卡片外部跟踪ID
-     * @param userId 目标用户ID
-     * @param updates 需要更新的键值对
+     * @description Incrementally updates the private data area of the specified user
+     *              in the AI card based on the specified key-value pairs.
+     * @param outTrackId card external tracking ID
+     * @param userId target user ID
+     * @param updates key-value pairs to update
      * @author Jiangbo Li
      * @date 2026-06-10
      */

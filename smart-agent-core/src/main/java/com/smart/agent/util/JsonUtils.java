@@ -8,9 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Optional;
 
 /**
- * JSON工具类
+ * JSON utility.
  *
- * @description 基于Jackson的JSON序列化与反序列化工具类，提供对象与JSON字符串的互转功能
+ * @description A Jackson-based JSON serialization and deserialization utility that provides conversion between Java objects and JSON strings
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -29,11 +29,11 @@ public class JsonUtils {
     }
 
     /**
-     * JSON序列化
+     * Serialize to JSON.
      *
-     * @description 将Java对象序列化为JSON字符串
-     * @param obj 待序列化的对象
-     * @return JSON字符串，序列化失败时返回空字符串
+     * @description Serializes a Java object into a JSON string
+     * @param obj the object to serialize
+     * @return the JSON string, or an empty string if serialization fails
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -47,11 +47,11 @@ public class JsonUtils {
     }
 
     /**
-     * JSON格式化序列化
+     * Pretty-print serialize to JSON.
      *
-     * @description 将Java对象序列化为格式化（美化缩进）的JSON字符串
-     * @param obj 待序列化的对象
-     * @return 格式化的JSON字符串，序列化失败时返回空字符串
+     * @description Serializes a Java object into a formatted (pretty-printed with indentation) JSON string
+     * @param obj the object to serialize
+     * @return the formatted JSON string, or an empty string if serialization fails
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -65,12 +65,12 @@ public class JsonUtils {
     }
 
     /**
-     * JSON反序列化
+     * Deserialize from JSON.
      *
-     * @description 将JSON字符串反序列化为指定Class类型的Java对象
-     * @param json JSON字符串
-     * @param tClass 目标类型的Class对象
-     * @return 包含反序列化结果的Optional，失败时返回Optional.empty()
+     * @description Deserializes a JSON string into a Java object of the specified Class type
+     * @param json the JSON string
+     * @param tClass the target Class object
+     * @return an Optional containing the deserialization result, or Optional.empty() on failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -84,12 +84,12 @@ public class JsonUtils {
     }
 
     /**
-     * JSON反序列化（泛型类型）
+     * Deserialize from JSON (generic type).
      *
-     * @description 将JSON字符串反序列化为指定TypeReference泛型类型的Java对象，适用于带泛型的复杂类型
-     * @param json JSON字符串
-     * @param typeReference 目标泛型类型引用
-     * @return 包含反序列化结果的Optional，失败时返回Optional.empty()
+     * @description Deserializes a JSON string into a Java object of the specified TypeReference generic type, suitable for complex parameterized types
+     * @param json the JSON string
+     * @param typeReference the target generic type reference
+     * @return an Optional containing the deserialization result, or Optional.empty() on failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */

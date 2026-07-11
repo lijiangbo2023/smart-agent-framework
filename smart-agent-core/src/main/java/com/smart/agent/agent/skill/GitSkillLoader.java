@@ -25,14 +25,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * Git技能加载器
+ * Git skill loader
  *
- * @description 从Git仓库中加载技能定义，支持自动克隆、增量同步和本地缓存，通过解析SKILL.md文件构建AgentSkill对象
+ * @description Loads skill definitions from a Git repository, supports automatic cloning, incremental sync
+ *              and local caching, builds AgentSkill objects by parsing SKILL.md files
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -43,11 +42,6 @@ public class GitSkillLoader {
 
     private static final String SKILLS_SUB_DIR = "skills";
     private static final String SKILL_MD = "SKILL.md";
-
-    private static final Pattern FRONTMATTER_PATTERN =
-            Pattern.compile("^---\\s*\\n(.*?)\\n---\\s*\\n", Pattern.DOTALL);
-    private static final Pattern YAML_FIELD_PATTERN =
-            Pattern.compile("^(\\w[\\w-]*):\\s*(.+)", Pattern.MULTILINE);
 
     @Value("${skill.git.repo-url:}")
     private String repoUrl;
@@ -73,9 +67,10 @@ public class GitSkillLoader {
     private final Map<String, List<AgentSkill>> agentSkillCache = new ConcurrentHashMap<>();
 
     /**
-     * 初始化Git技能加载器
+     * Initialize the Git skill loader
      *
-     * @description 在Bean初始化后自动执行，检查Git仓库配置并克隆远程仓库到本地缓存目录
+     * @description Executed automatically after Bean initialization, checks Git repository configuration
+     *              and clones the remote repository to the local cache directory
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -95,16 +90,21 @@ public class GitSkillLoader {
     }
 
     /**
-     * 根据技能名称加载单个技能
+     * Load a single skill by name
      *
-     * @description 从Git仓库中查找指定名称的技能目录，优先从缓存获取，未命中则解析SKILL.md并构建AgentSkill对象
-     * @param skillName 技能名称
-     * @return 加载成功返回AgentSkill对象，技能不存在或加载失败返回null
+     * @description Searches the Git repository for a skill directory with the given name,
+     *              prioritizes cache lookup; on cache miss, parses SKILL.md and builds an AgentSkill object
+     * @param skillName skill name
+     * @return AgentSkill object on success, or null if the skill does not exist or loading fails
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     public AgentSkill loadSkill(String skillName) {
         if (repoRoot == null || skillName == null || skillName.isBlank()) {
+            return null;
+        }
+        if (!isSafeName(skillName)) {
+            log.warn("Rejected unsafe skill name: {}", skillName);
             return null;
         }
         try {
@@ -117,7 +117,7 @@ public class GitSkillLoader {
             }
 
             Path skillDir = resolveSkillDir(skillName);
-            if (skillDir == null || !Files.isDirectory(skillDir)) {
+            if (skillDir == null || !isWithinRepoRoot(skillDir) || !Files.isDirectory(skillDir)) {
                 return null;
             }
             AgentSkill skill = buildSkillFromDir(skillDir);
@@ -132,12 +132,12 @@ public class GitSkillLoader {
     }
 
     /**
-     * 加载技能箱
+     * Load a skill box
      *
-     * @description 根据Agent名称加载其关联的所有技能，并注册到SkillBox中
-     * @param agentName Agent名称
-     * @param toolkit 工具集
-     * @return 包含该Agent所有技能的SkillBox对象
+     * @description Loads all skills associated with the given agent name and registers them into a SkillBox
+     * @param agentName agent name
+     * @param toolkit toolkit
+     * @return SkillBox containing all skills for the agent
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -148,16 +148,48 @@ public class GitSkillLoader {
     }
 
     /**
-     * 根据Agent名称加载技能列表
+     * Load skills by agent name
      *
-     * @description 优先从Agent专属目录加载技能，若为空则回退到公共skills目录加载，结果会被缓存
-     * @param agentName Agent名称
-     * @return 技能列表，加载失败或无技能时返回空列表
+     * @description Prioritizes loading skills from the agent-specific directory; falls back to the shared
+     *              skills directory if empty. Results are cached
+     * @param agentName agent name
+     * @return list of skills, or empty list if loading fails or no skills are found
      * @author Jiangbo Li
      * @date 2026-06-10
      */
+    /**
+     * Validate that a name parameter does not contain path traversal sequences.
+     *
+     * @param name the name to validate (skill name or agent name)
+     * @return true if the name is safe to use in path operations
+     */
+    private boolean isSafeName(String name) {
+        if (name == null || name.isBlank()) return false;
+        if (name.contains("..") || name.contains("/") || name.contains("\\")) return false;
+        if (name.contains("\0")) return false;
+        return name.matches("[a-zA-Z0-9_\\-.]+");
+    }
+
+    /**
+     * Validate that a resolved path is within the repository root.
+     *
+     * @param resolved the path to validate
+     * @return true if the path is safely contained within repoRoot
+     */
+    private boolean isWithinRepoRoot(Path resolved) {
+        try {
+            return resolved.normalize().startsWith(repoRoot.normalize());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public List<AgentSkill> loadSkillsByAgent(String agentName) {
         if (agentName == null || agentName.isBlank()) {
+            return List.of();
+        }
+        if (!isSafeName(agentName)) {
+            log.warn("Rejected unsafe agent name: {}", agentName);
             return List.of();
         }
         try {
@@ -170,14 +202,14 @@ public class GitSkillLoader {
             }
 
             List<AgentSkill> result = new ArrayList<>();
-            Path agentDir = repoRoot.resolve(agentName);
-            if (Files.isDirectory(agentDir)) {
+            Path agentDir = repoRoot.resolve(agentName).normalize();
+            if (isWithinRepoRoot(agentDir) && Files.isDirectory(agentDir)) {
                 result = scanSkillsInDir(agentDir);
             }
 
             if (result.isEmpty()) {
-                Path fallbackDir = repoRoot.resolve(SKILLS_SUB_DIR);
-                if (Files.isDirectory(fallbackDir)) {
+                Path fallbackDir = repoRoot.resolve(SKILLS_SUB_DIR).normalize();
+                if (isWithinRepoRoot(fallbackDir) && Files.isDirectory(fallbackDir)) {
                     result = scanSkillsInDir(fallbackDir);
                 }
             }
@@ -190,10 +222,11 @@ public class GitSkillLoader {
     }
 
     /**
-     * 加载所有技能
+     * Load all skills
      *
-     * @description 扫描Git仓库中的skills目录（或仓库根目录），加载所有包含SKILL.md的技能目录
-     * @return 所有技能的列表，加载失败时返回空列表
+     * @description Scans the skills directory (or repository root) in the Git repository,
+     *              loading all skill directories that contain a SKILL.md file
+     * @return list of all skills, or empty list if loading fails
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -253,7 +286,7 @@ public class GitSkillLoader {
             }
 
             String skillMdContent = Files.readString(skillMdPath, StandardCharsets.UTF_8);
-            Map<String, String> frontmatter = parseFrontmatter(skillMdContent);
+            Map<String, String> frontmatter = SkillFrontmatterParser.parse(skillMdContent);
             String name = frontmatter.get("name");
             String description = frontmatter.get("description");
             if (name == null || name.isEmpty() || description == null || description.isEmpty()) {
@@ -333,7 +366,8 @@ public class GitSkillLoader {
                     .filter(Files::isDirectory)
                     .filter(p -> !p.getFileName().toString().startsWith("."))
                     .filter(p -> !SKILLS_SUB_DIR.equals(p.getFileName().toString()))
-                    .map(p -> p.resolve(skillName))
+                    .map(p -> p.resolve(skillName).normalize())
+                    .filter(this::isWithinRepoRoot)
                     .filter(Files::isDirectory)
                     .findFirst()
                     .orElse(null);
@@ -341,10 +375,10 @@ public class GitSkillLoader {
         } catch (IOException e) {
             log.warn("Failed to scan repo root for skill '{}': {}", skillName, e.getMessage());
         }
-        Path inSkillsSubDir = repoRoot.resolve(SKILLS_SUB_DIR).resolve(skillName);
-        if (Files.isDirectory(inSkillsSubDir)) return inSkillsSubDir;
-        Path inRoot = repoRoot.resolve(skillName);
-        if (Files.isDirectory(inRoot)) return inRoot;
+        Path inSkillsSubDir = repoRoot.resolve(SKILLS_SUB_DIR).resolve(skillName).normalize();
+        if (isWithinRepoRoot(inSkillsSubDir) && Files.isDirectory(inSkillsSubDir)) return inSkillsSubDir;
+        Path inRoot = repoRoot.resolve(skillName).normalize();
+        if (isWithinRepoRoot(inRoot) && Files.isDirectory(inRoot)) return inRoot;
         return null;
     }
 
@@ -376,41 +410,5 @@ public class GitSkillLoader {
                 try { Files.deleteIfExists(p); } catch (IOException ex) { log.warn("Delete failed: {}", p); }
             });
         }
-    }
-
-    private static Map<String, String> parseFrontmatter(String content) {
-        Matcher frontmatterMatcher = FRONTMATTER_PATTERN.matcher(content);
-        if (!frontmatterMatcher.find()) return new HashMap<>();
-        String yamlBlock = frontmatterMatcher.group(1);
-        Map<String, String> fields = new HashMap<>();
-        Matcher fieldMatcher = YAML_FIELD_PATTERN.matcher(yamlBlock);
-        while (fieldMatcher.find()) {
-            String key = fieldMatcher.group(1).trim();
-            String value = fieldMatcher.group(2).trim();
-            if (value.startsWith(">-") || value.startsWith(">")) {
-                int nextLineStart = fieldMatcher.end();
-                value = extractMultilineYamlValue(yamlBlock, nextLineStart);
-            } else if ((value.startsWith("\"") && value.endsWith("\""))
-                    || (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.substring(1, value.length() - 1);
-            }
-            fields.put(key, value);
-        }
-        return fields;
-    }
-
-    private static String extractMultilineYamlValue(String yamlBlock, int startIndex) {
-        StringBuilder result = new StringBuilder();
-        String[] lines = yamlBlock.substring(startIndex).split("\\n");
-        for (String line : lines) {
-            if (line.isEmpty()) continue;
-            if (line.startsWith("  ") || line.startsWith("\t")) {
-                if (!result.isEmpty()) result.append(" ");
-                result.append(line.trim());
-            } else {
-                break;
-            }
-        }
-        return result.toString();
     }
 }

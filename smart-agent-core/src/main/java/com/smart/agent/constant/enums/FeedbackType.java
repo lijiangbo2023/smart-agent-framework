@@ -3,9 +3,9 @@ package com.smart.agent.constant.enums;
 import lombok.Getter;
 
 /**
- * 反馈类型枚举
+ * Feedback type enum.
  *
- * @description 用户对消息的反馈类型，包括未操作、点赞、点踩
+ * @description User feedback types for messages, including no action, like, and dislike
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -26,11 +26,11 @@ public enum FeedbackType {
     }
 
     /**
-     * 根据编码获取反馈类型
+     * Get feedback type by code.
      *
-     * @description 通过整型编码值查找对应的反馈类型枚举实例，若编码不存在则抛出异常
-     * @param code 反馈类型编码
-     * @return 对应的反馈类型枚举实例
+     * @description Looks up the corresponding feedback type enum instance by integer code; throws an exception if the code does not exist
+     * @param code the feedback type code
+     * @return the corresponding feedback type enum instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */

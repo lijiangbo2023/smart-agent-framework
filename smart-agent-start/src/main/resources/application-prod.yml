@@ -1,0 +1,46 @@
+# ============================================================
+# Production profile
+# ============================================================
+server:
+  tomcat:
+    max-threads: 200
+    accept-count: 100
+
+spring:
+  datasource:
+    # Production MUST enable SSL
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:smart_agent}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=true&requireSSL=true&verifyServerCertificate=true
+  flyway:
+    enabled: true
+
+# CORS: must be explicitly configured, wildcard '*' is rejected
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+# Auth must be enabled in production
+auth:
+  api-key:
+    enabled: true
+    value: ${AUTH_API_KEY}
+
+# Swagger disabled in production
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# Actuator: restrict access
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    com.smart.agent: WARN
+    io.agentscope: WARN

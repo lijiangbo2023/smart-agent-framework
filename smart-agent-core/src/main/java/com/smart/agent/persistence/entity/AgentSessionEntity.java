@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 import java.util.Date;
 
 /**
- * Agent会话实体
+ * Agent session entity
  *
- * @description 对应agent_session表，存储Agent会话的键值数据，
- *              支持按用户、Agent名称和会话ID进行数据隔离。
+ * @description Maps to the agent_session table, storing Agent session key-value data,
+ *              supporting data isolation by user, agent name and session ID.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0

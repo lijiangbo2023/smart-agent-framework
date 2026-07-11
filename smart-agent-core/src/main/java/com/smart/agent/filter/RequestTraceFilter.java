@@ -17,11 +17,15 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
- * 请求链路追踪过滤器
+ * Request trace filter.
  *
- * @description Servlet过滤器，为每个HTTP请求生成或提取traceId并放入MDC，支持请求耗时日志记录
+ * @description Servlet filter that generates or extracts a traceId for each HTTP request and places it
+ *              in the MDC. Supports request elapsed-time logging.
+ *              Client-provided traceIds are validated against a strict alphanumeric pattern to prevent
+ *              HTTP response header injection and log injection attacks.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -35,11 +39,14 @@ public class RequestTraceFilter implements Filter {
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
     private static final Logger ACCESS_LOG = LoggerFactory.getLogger("access");
 
+    /** Whitelist pattern: only alphanumeric, dash, underscore, dot. Max 64 chars. */
+    private static final Pattern TRACE_ID_PATTERN = Pattern.compile("[a-zA-Z0-9\\-_.]{1,64}");
+
     /**
-     * 初始化过滤器
+     * Initialize the filter.
      *
-     * @description 过滤器初始化回调，记录初始化日志
-     * @param filterConfig 过滤器配置对象
+     * @description Filter initialization callback, logs initialization event
+     * @param filterConfig filter configuration object
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -49,12 +56,13 @@ public class RequestTraceFilter implements Filter {
     }
 
     /**
-     * 执行过滤逻辑
+     * Execute filter logic.
      *
-     * @description 从请求头提取或自动生成traceId，设置到MDC和响应头中，并记录请求访问日志
-     * @param servletRequest 请求对象
-     * @param servletResponse 响应对象
-     * @param filterChain 过滤器链
+     * @description Extract or auto-generate a traceId from the request header, set it in the MDC and
+     *              response header, and log the access request
+     * @param servletRequest request object
+     * @param servletResponse response object
+     * @param filterChain filter chain
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -65,7 +73,10 @@ public class RequestTraceFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) servletResponse;
 
         String traceId = request.getHeader(TRACE_ID_HEADER);
-        if (traceId == null || traceId.isEmpty()) {
+        if (traceId != null && !traceId.isEmpty() && TRACE_ID_PATTERN.matcher(traceId).matches()) {
+            // Client-provided traceId is valid, use it
+        } else {
+            // Generate a new traceId (client header was missing, empty, or contained unsafe chars)
             traceId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         }
         MDC.put(TRACE_ID_KEY, traceId);
@@ -84,16 +95,5 @@ public class RequestTraceFilter implements Filter {
                     traceId);
             MDC.remove(TRACE_ID_KEY);
         }
-    }
-
-    /**
-     * 销毁过滤器
-     *
-     * @description 过滤器销毁回调，执行资源清理
-     * @author Jiangbo Li
-     * @date 2026-06-10
-     */
-    @Override
-    public void destroy() {
     }
 }

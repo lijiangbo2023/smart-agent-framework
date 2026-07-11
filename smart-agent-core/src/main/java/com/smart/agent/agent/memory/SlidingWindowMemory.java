@@ -11,12 +11,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * 滑动窗口记忆
+ * Sliding window memory
  *
- * @description 基于消息数量和时间窗口的记忆管理，自动淘汰过期和超量消息，支持持久化到 Session
+ * @description Memory management based on message count and time window. Automatically evicts
+ *              expired and excess messages, and supports persistence to Session.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -28,16 +28,16 @@ public class SlidingWindowMemory implements Memory {
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    private final List<Msg> messages = new CopyOnWriteArrayList<>();
+    private final List<Msg> messages = new ArrayList<>();
     private final int maxMessages;
     private final Duration timeWindow;
 
     /**
-     * 构造滑动窗口记忆
+     * Construct a sliding window memory
      *
-     * @description 初始化最大消息数和时间窗口
-     * @param maxMessages 最大保留消息数
-     * @param timeWindow 时间窗口，超出窗口的消息将被淘汰
+     * @description Initializes the maximum message count and time window
+     * @param maxMessages maximum number of messages to retain
+     * @param timeWindow time window; messages beyond the window will be evicted
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -47,86 +47,86 @@ public class SlidingWindowMemory implements Memory {
     }
 
     /**
-     * 添加消息
+     * Add a message
      *
-     * @description 添加一条消息到记忆，并执行淘汰策略
-     * @param message 消息对象
+     * @description Adds a message to memory and applies the eviction policy
+     * @param message the message to add
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
-    public void addMessage(Msg message) {
+    public synchronized void addMessage(Msg message) {
         messages.add(message);
         evict();
     }
 
     /**
-     * 获取所有有效消息
+     * Get all valid messages
      *
-     * @description 淘汰过期消息后返回剩余消息的副本
-     * @return 消息列表
+     * @description Evicts expired messages and returns a copy of the remaining messages
+     * @return list of messages
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
-    public List<Msg> getMessages() {
+    public synchronized List<Msg> getMessages() {
         evict();
         return new ArrayList<>(messages);
     }
 
     /**
-     * 删除指定位置的消息
+     * Delete a message at the specified position
      *
-     * @description 根据索引删除消息
-     * @param index 消息索引
+     * @description Deletes a message by index
+     * @param index message index
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
-    public void deleteMessage(int index) {
+    public synchronized void deleteMessage(int index) {
         if (index >= 0 && index < messages.size()) {
             messages.remove(index);
         }
     }
 
     /**
-     * 清空所有消息
+     * Clear all messages
      *
-     * @description 清除记忆中的全部消息
+     * @description Removes all messages from memory
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
-    public void clear() {
+    public synchronized void clear() {
         messages.clear();
     }
 
     /**
-     * 保存记忆到 Session
+     * Save memory to Session
      *
-     * @description 将当前有效消息持久化到 Session 存储
-     * @param session 会话存储
-     * @param sessionKey 会话标识
+     * @description Persists the current valid messages to Session storage
+     * @param session session storage
+     * @param sessionKey session identifier
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
-    public void saveTo(Session session, SessionKey sessionKey) {
+    public synchronized void saveTo(Session session, SessionKey sessionKey) {
         evict();
         session.save(sessionKey, SESSION_KEY, new ArrayList<>(messages));
     }
 
     /**
-     * 从 Session 加载记忆
+     * Load memory from Session
      *
-     * @description 从 Session 存储中恢复消息，并执行淘汰策略
-     * @param session 会话存储
-     * @param sessionKey 会话标识
+     * @description Restores messages from Session storage and applies the eviction policy
+     * @param session session storage
+     * @param sessionKey session identifier
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
-    public void loadFrom(Session session, SessionKey sessionKey) {
+    public synchronized void loadFrom(Session session, SessionKey sessionKey) {
         List<Msg> loaded = session.getList(sessionKey, SESSION_KEY, Msg.class);
         messages.clear();
         messages.addAll(loaded);

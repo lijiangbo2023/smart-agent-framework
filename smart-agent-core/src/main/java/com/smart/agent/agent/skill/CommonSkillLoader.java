@@ -10,13 +10,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * 通用技能加载器
+ * Common skill loader
  *
- * @description 从classpath中加载技能定义文件(SKILL.md)，解析frontmatter元数据并构建AgentSkill对象
+ * @description Loads skill definition files (SKILL.md) from classpath, parses frontmatter metadata
+ *              and builds AgentSkill objects
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -26,21 +25,16 @@ public class CommonSkillLoader {
 
     private static final String SKILL_DIR = "skills";
 
-    private static final Pattern FRONTMATTER_PATTERN =
-            Pattern.compile("^---\\s*\\n(.*?)\\n---\\s*\\n", Pattern.DOTALL);
-
-    private static final Pattern YAML_FIELD_PATTERN =
-            Pattern.compile("^(\\w[\\w-]*):\\s*(.+)", Pattern.MULTILINE);
-
     private CommonSkillLoader() {
     }
 
     /**
-     * 根据技能名称加载技能
+     * Load a skill by name
      *
-     * @description 从classpath中查找指定名称的技能目录，读取SKILL.md文件并解析为AgentSkill对象，同时收集技能目录下的所有资源文件
-     * @param skillName 技能名称，对应classpath下skills目录中的子目录名
-     * @return 加载成功返回AgentSkill对象，技能不存在或加载失败返回null
+     * @description Searches classpath for a skill directory with the given name, reads the SKILL.md file
+     *              and parses it into an AgentSkill object, while collecting all resource files under the skill directory
+     * @param skillName skill name, corresponding to a subdirectory name under the skills directory on classpath
+     * @return AgentSkill object on success, or null if the skill does not exist or loading fails
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -65,7 +59,7 @@ public class CommonSkillLoader {
     private static AgentSkill loadSingleSkill(Resource skillMdResource, PathMatchingResourcePatternResolver resolver)
             throws IOException {
         String skillMdContent = readResource(skillMdResource);
-        Map<String, String> frontmatter = parseFrontmatter(skillMdContent);
+        Map<String, String> frontmatter = SkillFrontmatterParser.parse(skillMdContent);
 
         String name = frontmatter.get("name");
         String description = frontmatter.get("description");
@@ -105,49 +99,6 @@ public class CommonSkillLoader {
                 .resources(resources)
                 .source("classpath")
                 .build();
-    }
-
-    private static Map<String, String> parseFrontmatter(String content) {
-        Matcher frontmatterMatcher = FRONTMATTER_PATTERN.matcher(content);
-        if (!frontmatterMatcher.find()) {
-            return new HashMap<>();
-        }
-
-        String yamlBlock = frontmatterMatcher.group(1);
-        Map<String, String> fields = new HashMap<>();
-        Matcher fieldMatcher = YAML_FIELD_PATTERN.matcher(yamlBlock);
-        while (fieldMatcher.find()) {
-            String key = fieldMatcher.group(1).trim();
-            String value = fieldMatcher.group(2).trim();
-            if (value.startsWith(">-") || value.startsWith(">")) {
-                int nextLineStart = fieldMatcher.end();
-                value = extractMultilineYamlValue(yamlBlock, nextLineStart);
-            } else if ((value.startsWith("\"") && value.endsWith("\""))
-                    || (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.substring(1, value.length() - 1);
-            }
-            fields.put(key, value);
-        }
-        return fields;
-    }
-
-    private static String extractMultilineYamlValue(String yamlBlock, int startIndex) {
-        StringBuilder result = new StringBuilder();
-        String[] lines = yamlBlock.substring(startIndex).split("\\n");
-        for (String line : lines) {
-            if (line.isEmpty()) {
-                continue;
-            }
-            if (line.startsWith("  ") || line.startsWith("\t")) {
-                if (!result.isEmpty()) {
-                    result.append(" ");
-                }
-                result.append(line.trim());
-            } else {
-                break;
-            }
-        }
-        return result.toString();
     }
 
     private static String readResource(Resource resource) throws IOException {

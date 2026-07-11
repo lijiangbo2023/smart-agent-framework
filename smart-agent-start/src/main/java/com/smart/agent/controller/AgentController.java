@@ -2,33 +2,39 @@ package com.smart.agent.controller;
 
 import com.smart.agent.agent.service.SupervisorAgentService;
 import com.smart.agent.constant.enums.MessageChannel;
+import com.smart.agent.filter.ApiKeyAuthInterceptor;
+import com.smart.agent.model.ChatContext;
 import com.smart.agent.model.ChatRequest;
 import com.smart.agent.model.ChatResult;
 import com.smart.agent.model.ChatStreamResult;
 import com.smart.agent.model.ServiceResponse;
 import com.smart.agent.service.AgentChatMessageService;
-import com.smart.agent.service.AgentConversationSessionService;
-import com.smart.agent.persistence.entity.AgentChatMessageEntity;
-import com.smart.agent.persistence.mapper.AgentChatMessageMapper;
 import com.smart.agent.util.SensitiveUtils;
 import com.smart.agent.util.SseEventHelper;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Agent对话控制器
+ * Agent conversation controller
  *
- * @description 提供Agent对话相关的REST API接口，包括同步对话、流式对话、历史记录查询、会话详情查询和赞踩反馈功能
+ * @description Provides REST API endpoints for Agent conversations, including synchronous chat,
+ *              streaming chat, history query, conversation detail query and like/dislike feedback
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -36,8 +42,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/agent")
-@Tag(name = "Agent", description = "Agent 对话接口")
-@CrossOrigin(origins = "*")
+@Tag(name = "Agent", description = "Agent conversation API")
 public class AgentController {
 
     private static final long SSE_TIMEOUT = 5 * 60 * 1000L;
@@ -45,59 +50,59 @@ public class AgentController {
 
     private final SupervisorAgentService supervisorAgentService;
     private final AgentChatMessageService agentChatMessageService;
-    private final AgentConversationSessionService conversationSessionService;
-    private final AgentChatMessageMapper agentChatMessageMapper;
     private final ObjectMapper objectMapper;
 
     public AgentController(SupervisorAgentService supervisorAgentService,
                            AgentChatMessageService agentChatMessageService,
-                           AgentConversationSessionService conversationSessionService,
-                           AgentChatMessageMapper agentChatMessageMapper,
                            ObjectMapper objectMapper) {
         this.supervisorAgentService = supervisorAgentService;
         this.agentChatMessageService = agentChatMessageService;
-        this.conversationSessionService = conversationSessionService;
-        this.agentChatMessageMapper = agentChatMessageMapper;
         this.objectMapper = objectMapper;
     }
 
     /**
-     * 同步对话
+     * Synchronous chat
      *
-     * @description 接收用户消息并同步返回Agent的回复结果，回复内容经过敏感信息脱敏处理
-     * @param request 对话请求，包含用户ID、会话ID和消息内容
-     * @return 包含Agent回复文本的响应结果
+     * @description Receives a user message and synchronously returns the Agent's reply,
+     *              with sensitive information masked
+     * @param request chat request containing user ID, session ID and message content
+     * @return response containing the Agent's reply text
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @PostMapping("/chat")
-    @Operation(summary = "同步对话")
-    public ServiceResponse<String> chat(@RequestBody ChatRequest request) {
+    @Operation(summary = "Synchronous chat")
+    public ServiceResponse<String> chat(HttpServletRequest httpRequest,
+                                        @Valid @RequestBody ChatRequest request) {
+        validateUserIdOwnership(httpRequest, request.getUserId());
         log.info("Chat request, userId={}, sessionId={}", request.getUserId(), request.getSessionId());
-        ChatResult result = supervisorAgentService.chat(
-                request.getUserId(), request.getSessionId(), request.getMessage(),
+        ChatContext context = new ChatContext(request.getSessionId(), request.getUserId(), request.getMessage(),
                 MessageChannel.HTTP, DEFAULT_BUSINESS, null, null);
+        ChatResult result = supervisorAgentService.chat(context);
         return ServiceResponse.success(SensitiveUtils.mask(result.responseText()));
     }
 
     /**
-     * 流式对话
+     * Streaming chat
      *
-     * @description 接收用户消息并通过SSE（Server-Sent Events）流式返回Agent的回复，支持实时推送对话事件
-     * @param request 对话请求，包含用户ID、会话ID和消息内容
-     * @return SSE事件发射器，用于流式推送对话结果
+     * @description Receives a user message and streams the Agent's reply via SSE (Server-Sent Events),
+     *              supporting real-time push of conversation events
+     * @param request chat request containing user ID, session ID and message content
+     * @return SSE emitter for streaming conversation results
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @Operation(summary = "流式对话")
-    public SseEmitter chatStream(@RequestBody ChatRequest request) {
+    @Operation(summary = "Streaming chat")
+    public SseEmitter chatStream(HttpServletRequest httpRequest,
+                                  @Valid @RequestBody ChatRequest request) {
+        validateUserIdOwnership(httpRequest, request.getUserId());
         log.info("Stream chat request, userId={}, sessionId={}", request.getUserId(), request.getSessionId());
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
 
-        ChatStreamResult streamResult = supervisorAgentService.chatStream(
-                request.getUserId(), request.getSessionId(), request.getMessage(),
+        ChatContext context = new ChatContext(request.getSessionId(), request.getUserId(), request.getMessage(),
                 MessageChannel.HTTP, DEFAULT_BUSINESS, null, null);
+        ChatStreamResult streamResult = supervisorAgentService.chatStream(context);
         streamResult.eventStream()
                 .subscribe(
                         event -> SseEventHelper.sendEvent(emitter, event, objectMapper),
@@ -115,88 +120,102 @@ public class AgentController {
     }
 
     /**
-     * 获取用户历史对话列表
+     * Get user conversation history
      *
-     * @description 根据用户ID查询其所有历史对话记录，按创建时间降序排列
-     * @param userId 用户ID
-     * @return 包含对话记录列表的响应结果，每条记录包含消息ID、会话ID、用户输入、Agent输出、状态、反馈类型和创建时间等信息
+     * @description Queries all history records for the given user ID, ordered by creation time descending
+     * @param userId user ID
+     * @return response containing a list of conversation records, each including message ID, session ID,
+     *         user input, agent output, status, feedback type and creation time
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @GetMapping("/history/{userId}")
-    @Operation(summary = "获取用户历史对话列表")
-    public ServiceResponse<List<Map<String, Object>>> getHistory(@PathVariable String userId) {
-        LambdaQueryWrapper<AgentChatMessageEntity> wrapper = new LambdaQueryWrapper<AgentChatMessageEntity>()
-                .eq(AgentChatMessageEntity::getUserId, userId)
-                .orderByDesc(AgentChatMessageEntity::getGmtCreate);
-        List<AgentChatMessageEntity> messages = agentChatMessageMapper.selectList(wrapper);
-
-        List<Map<String, Object>> result = messages.stream().map(m -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", m.getId());
-            map.put("sessionId", m.getSessionId());
-            map.put("userInput", m.getUserInput());
-            map.put("agentOutput", m.getAgentOutput());
-            map.put("status", m.getStatus());
-            map.put("feedbackType", m.getFeedbackType());
-            map.put("gmtCreate", m.getGmtCreate());
-            map.put("conversationId", m.getConversationId());
-            return map;
-        }).toList();
-
+    @Operation(summary = "Get user conversation history")
+    public ServiceResponse<Map<String, Object>> getHistory(
+            HttpServletRequest httpRequest,
+            @PathVariable @Pattern(regexp = "[a-zA-Z0-9_\\-.:@]+", message = "userId contains invalid characters") String userId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        validateUserIdOwnership(httpRequest, userId);
+        Map<String, Object> result = agentChatMessageService.getHistoryPage(userId, page, size);
         return ServiceResponse.success(result);
     }
 
     /**
-     * 获取指定会话的对话详情
+     * Get conversation details
      *
-     * @description 根据用户ID和会话ID查询该会话下的所有对话消息，按创建时间升序排列
-     * @param userId 用户ID
-     * @param sessionId 会话ID
-     * @return 包含对话详情列表的响应结果，每条记录包含消息ID、用户输入、Agent输出、状态、反馈类型和创建时间等信息
+     * @description Queries all conversation messages under the given user ID and session ID,
+     *              ordered by creation time ascending
+     * @param userId user ID
+     * @param sessionId session ID
+     * @return response containing a list of conversation details, each including message ID, user input,
+     *         agent output, status, feedback type and creation time
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @GetMapping("/conversation/{userId}/{sessionId}")
-    @Operation(summary = "获取指定会话的对话详情")
-    public ServiceResponse<List<Map<String, Object>>> getConversation(@PathVariable String userId,
-                                                                       @PathVariable String sessionId) {
-        LambdaQueryWrapper<AgentChatMessageEntity> wrapper = new LambdaQueryWrapper<AgentChatMessageEntity>()
-                .eq(AgentChatMessageEntity::getUserId, userId)
-                .eq(AgentChatMessageEntity::getSessionId, sessionId)
-                .orderByAsc(AgentChatMessageEntity::getGmtCreate);
-        List<AgentChatMessageEntity> messages = agentChatMessageMapper.selectList(wrapper);
-
-        List<Map<String, Object>> result = messages.stream().map(m -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", m.getId());
-            map.put("userInput", m.getUserInput());
-            map.put("agentOutput", m.getAgentOutput());
-            map.put("status", m.getStatus());
-            map.put("feedbackType", m.getFeedbackType());
-            map.put("gmtCreate", m.getGmtCreate());
-            return map;
-        }).toList();
-
+    @Operation(summary = "Get conversation details")
+    public ServiceResponse<List<Map<String, Object>>> getConversation(
+            HttpServletRequest httpRequest,
+            @PathVariable @Pattern(regexp = "[a-zA-Z0-9_\\-.:@]+", message = "userId contains invalid characters") String userId,
+            @PathVariable @Pattern(regexp = "[a-zA-Z0-9_\\-.:@]+", message = "sessionId contains invalid characters") String sessionId) {
+        validateUserIdOwnership(httpRequest, userId);
+        List<Map<String, Object>> result = agentChatMessageService.getConversationMessages(userId, sessionId);
         return ServiceResponse.success(result);
     }
 
     /**
-     * 赞踩反馈
+     * Like/dislike feedback
      *
-     * @description 对指定消息进行赞或踩的反馈操作，支持切换反馈状态
-     * @param body 请求体，包含messageId（消息ID）、action（反馈动作）和currentStatus（当前反馈状态）
-     * @return 包含更新后反馈状态的响应结果
+     * @description Performs a like or dislike action on the specified message, supporting feedback status toggle
+     * @param request request body containing messageId, action and currentStatus
+     * @return response containing the updated feedback status
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @PostMapping("/feedback")
-    @Operation(summary = "赞踩反馈")
-    public ServiceResponse<String> feedback(@RequestBody Map<String, Object> body) {
-        Long messageId = Long.valueOf(body.get("messageId").toString());
-        String action = (String) body.get("action");
-        String currentStatus = (String) body.getOrDefault("currentStatus", "none");
-        String newStatus = agentChatMessageService.updateFeedback(messageId, action, currentStatus);
+    @Operation(summary = "Like/dislike feedback")
+    public ServiceResponse<String> feedback(HttpServletRequest httpRequest,
+                                             @Valid @RequestBody FeedbackRequest request) {
+        // Validate that the authenticated user owns this message
+        String authenticatedUserId = (String) httpRequest.getAttribute(ApiKeyAuthInterceptor.AUTHENTICATED_USER_ID_ATTR);
+        if (authenticatedUserId != null) {
+            String ownerUserId = agentChatMessageService.getMessageOwner(request.getMessageId());
+            if (ownerUserId == null || !ownerUserId.equals(authenticatedUserId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this message");
+            }
+        }
+        String currentStatus = request.getCurrentStatus() != null ? request.getCurrentStatus() : "none";
+        String newStatus = agentChatMessageService.updateFeedback(request.getMessageId(), request.getAction(), currentStatus);
         return ServiceResponse.success(newStatus);
+    }
+
+    /**
+     * Feedback request model
+     *
+     * @description Encapsulates the parameters for a like/dislike feedback request
+     * @author Jiangbo Li
+     * @date 2026-06-10
+     * @version 1.0
+     */
+    @Data
+    public static class FeedbackRequest {
+        @NotNull(message = "messageId is required")
+        private Long messageId;
+        @NotBlank(message = "action is required")
+        @Pattern(regexp = "like|dislike", message = "action must be 'like' or 'dislike'")
+        private String action;
+        private String currentStatus;
+    }
+
+    /**
+     * Validates that the authenticated user (from X-User-Id header) matches the target userId.
+     * Skips validation when no authenticated user is present (e.g., auth disabled in local dev).
+     */
+    private void validateUserIdOwnership(HttpServletRequest httpRequest, String targetUserId) {
+        String authenticatedUserId = (String) httpRequest.getAttribute(ApiKeyAuthInterceptor.AUTHENTICATED_USER_ID_ATTR);
+        if (authenticatedUserId != null && !authenticatedUserId.equals(targetUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied: userId mismatch");
+        }
     }
 }

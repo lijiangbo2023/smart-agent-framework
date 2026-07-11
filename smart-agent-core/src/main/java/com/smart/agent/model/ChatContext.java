@@ -3,9 +3,9 @@ package com.smart.agent.model;
 import com.smart.agent.constant.enums.MessageChannel;
 
 /**
- * 对话上下文
+ * Chat context.
  *
- * @description 封装智能对话的上下文信息，包含会话ID、用户ID、用户消息、消息渠道、业务名称及会话类型等
+ * @description Encapsulates the context information of an intelligent conversation, including session ID, user ID, user message, message channel, business name, and conversation type
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0

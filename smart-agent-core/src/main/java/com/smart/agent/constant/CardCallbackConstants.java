@@ -3,9 +3,9 @@ package com.smart.agent.constant;
 import java.util.List;
 
 /**
- * 卡片回调常量类
+ * Card callback constants.
  *
- * @description 定义钉钉互动卡片回调场景中使用的常量，包括动作标识、状态值、参数键名和默认值等
+ * @description Defines constants used in DingTalk interactive card callback scenarios, including action identifiers, status values, parameter keys, and default values
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -16,9 +16,9 @@ public final class CardCallbackConstants {
     }
 
     /**
-     * 动作标识常量类
+     * Action ID constants.
      *
-     * @description 定义卡片回调中各交互动作的唯一标识符，如删除记忆、点赞、点踩和提交反馈
+     * @description Defines unique identifiers for each interactive action in card callbacks, such as delete memory, like, dislike, and submit feedback
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0
@@ -34,9 +34,9 @@ public final class CardCallbackConstants {
     }
 
     /**
-     * 删除状态常量类
+     * Delete status constants.
      *
-     * @description 定义记忆删除操作的结果状态，包括成功、失败和无权限
+     * @description Defines result statuses for the memory deletion operation, including success, failure, and denied
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0
@@ -51,9 +51,9 @@ public final class CardCallbackConstants {
     }
 
     /**
-     * 反馈结果常量类
+     * Feedback result constants.
      *
-     * @description 定义用户反馈操作的结果状态，包括成功、失败和无权限
+     * @description Defines result statuses for user feedback operations, including success, failure, and denied
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0
@@ -68,9 +68,9 @@ public final class CardCallbackConstants {
     }
 
     /**
-     * 参数键名常量类
+     * Parameter key constants.
      *
-     * @description 定义卡片回调请求和响应中使用的参数键名，用于数据传递和状态管理
+     * @description Defines parameter keys used in card callback requests and responses for data passing and state management
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0
@@ -92,9 +92,9 @@ public final class CardCallbackConstants {
     }
 
     /**
-     * 反馈评论状态常量类
+     * Feedback comment status constants.
      *
-     * @description 定义反馈评论输入框的显示状态，包括正常显示和禁用
+     * @description Defines the display states of the feedback comment input field, including normal and disabled
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0
@@ -108,9 +108,9 @@ public final class CardCallbackConstants {
     }
 
     /**
-     * 默认值常量类
+     * Default value constants.
      *
-     * @description 定义卡片回调各状态字段的初始默认值
+     * @description Defines the initial default values for card callback status fields
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0

@@ -4,17 +4,20 @@ import io.agentscope.core.tool.Tool;
 import io.agentscope.core.tool.ToolParam;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * 示例工具集
+ * Demo toolset
  *
- * @description 提供Agent可调用的示例工具方法，包括获取当前时间、数学表达式计算、城市天气查询和互联网搜索功能
+ * @description Provides sample tool methods callable by the Agent, including current time retrieval,
+ *              math expression evaluation, city weather query and internet search
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -26,30 +29,31 @@ public class DemoTools {
             .build();
 
     /**
-     * 获取当前时间
+     * Get current time
      *
-     * @description 获取当前系统日期和时间，返回格式为 yyyy-MM-dd HH:mm:ss (星期X)
-     * @return 格式化的当前日期时间字符串
+     * @description Returns the current system date and time in the format yyyy-MM-dd HH:mm:ss (day of week)
+     * @return formatted current date-time string
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "get_current_time", description = "获取当前日期和时间")
+    @Tool(name = "get_current_time", description = "Get the current date and time")
     public String getCurrentTime() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss (EEEE)"));
     }
 
     /**
-     * 数学表达式计算器
+     * Math expression calculator
      *
-     * @description 解析并计算数学表达式，支持加减乘除、括号、幂运算和取模运算，输入会经过安全字符过滤
-     * @param expression 数学表达式字符串，如 '(3+5)*2' 或 '2^10'
-     * @return 计算结果字符串，格式为 "表达式 = 结果"；计算失败时返回错误信息
+     * @description Parses and evaluates math expressions, supporting addition, subtraction, multiplication,
+     *              division, parentheses, exponentiation and modulo. Input is sanitized for safe characters.
+     * @param expression math expression string, e.g. '(3+5)*2' or '2^10'
+     * @return calculation result in the format "expression = result", or error message on failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "calculator", description = "计算数学表达式，支持加减乘除、括号、幂运算等。输入为字符串形式的数学表达式")
+    @Tool(name = "calculator", description = "Evaluate math expressions, supporting addition, subtraction, multiplication, division, parentheses, exponentiation, etc. Input is a math expression as a string")
     public String calculator(
-            @ToolParam(name = "expression", description = "数学表达式，如 '(3+5)*2' 或 '2^10'") String expression) {
+            @ToolParam(name = "expression", description = "Math expression, e.g. '(3+5)*2' or '2^10'") String expression) {
         try {
             String sanitized = expression.replaceAll("[^0-9+\\-*/().^%\\s]", "");
             double result = evalExpression(sanitized);
@@ -58,22 +62,23 @@ public class DemoTools {
             }
             return expression + " = " + result;
         } catch (Exception e) {
-            return "计算失败: " + e.getMessage();
+            return "Calculation failed: " + e.getMessage();
         }
     }
 
     /**
-     * 查询城市天气
+     * Query city weather
      *
-     * @description 通过wttr.in API查询指定城市的实时天气信息，包括天气状况、温度、湿度和风速
-     * @param city 城市名称，如 '北京'、'上海'
-     * @return 天气信息字符串；查询失败时返回错误信息
+     * @description Queries real-time weather information for the specified city via the wttr.in API,
+     *              including weather condition, temperature, humidity and wind speed
+     * @param city city name, e.g. 'Beijing', 'Shanghai'
+     * @return weather information string, or error message on failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "get_weather", description = "查询指定城市的实时天气信息")
+    @Tool(name = "get_weather", description = "Query real-time weather information for a specified city")
     public String getWeather(
-            @ToolParam(name = "city", description = "城市名称，如 '北京'、'上海'") String city) {
+            @ToolParam(name = "city", description = "City name, e.g. 'Beijing', 'Shanghai'") String city) {
         try {
             String url = "https://wttr.in/" + city + "?format=%C+%t+%h+%w&lang=zh";
             HttpRequest request = HttpRequest.newBuilder()
@@ -84,28 +89,29 @@ public class DemoTools {
                     .build();
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200 && !response.body().isBlank()) {
-                return city + " 天气: " + response.body().trim();
+                return city + " weather: " + response.body().trim();
             }
-            return "无法获取 " + city + " 的天气信息";
+            return "Unable to get weather for " + city;
         } catch (Exception e) {
-            return "天气查询失败: " + e.getMessage();
+            return "Weather query failed: " + e.getMessage();
         }
     }
 
     /**
-     * 互联网搜索
+     * Internet search
      *
-     * @description 通过DuckDuckGo Lite搜索互联网信息并返回摘要结果，结果最大长度限制为1500字符
-     * @param query 搜索关键词
-     * @return 搜索结果摘要字符串；搜索失败时返回错误信息
+     * @description Searches the internet via DuckDuckGo Lite and returns a summary result,
+     *              with a maximum length limit of 1500 characters
+     * @param query search keywords
+     * @return search result summary string, or error message on failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "web_search_summary", description = "搜索互联网信息并返回摘要结果")
+    @Tool(name = "web_search_summary", description = "Search the internet and return a summary result")
     public String webSearch(
-            @ToolParam(name = "query", description = "搜索关键词") String query) {
+            @ToolParam(name = "query", description = "Search keywords") String query) {
         try {
-            String url = "https://lite.duckduckgo.com/lite/?q=" + java.net.URLEncoder.encode(query, "UTF-8");
+            String url = "https://lite.duckduckgo.com/lite/?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .header("User-Agent", "smart-agent/1.0")
@@ -118,24 +124,24 @@ public class DemoTools {
             if (body.length() > 1500) {
                 body = body.substring(0, 1500) + "...";
             }
-            return "搜索结果摘要:\n" + body;
+            return "Search result summary:\n" + body;
         } catch (Exception e) {
-            return "搜索失败: " + e.getMessage();
+            return "Search failed: " + e.getMessage();
         }
     }
 
     /**
-     * IP 归属地查询
+     * IP geolocation lookup
      *
-     * @description 通过 ipinfo.io 免费 API 查询 IP 地址的地理位置信息
-     * @param ip IP 地址
-     * @return IP 归属地信息
+     * @description Queries the geolocation information of an IP address via the ipinfo.io free API
+     * @param ip IP address
+     * @return IP geolocation information
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "ip_lookup", description = "查询IP地址的地理位置和归属信息")
+    @Tool(name = "ip_lookup", description = "Query the geolocation and ownership information of an IP address")
     public String ipLookup(
-            @ToolParam(name = "ip", description = "IP地址，如 '8.8.8.8'") String ip) {
+            @ToolParam(name = "ip", description = "IP address, e.g. '8.8.8.8'") String ip) {
         try {
             String url = "https://ipinfo.io/" + ip + "/json";
             HttpRequest request = HttpRequest.newBuilder()
@@ -146,23 +152,23 @@ public class DemoTools {
                     .build();
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
-                return "IP " + ip + " 信息:\n" + response.body();
+                return "IP " + ip + " info:\n" + response.body();
             }
-            return "无法查询 IP: " + ip;
+            return "Unable to look up IP: " + ip;
         } catch (Exception e) {
-            return "IP 查询失败: " + e.getMessage();
+            return "IP lookup failed: " + e.getMessage();
         }
     }
 
     /**
-     * 获取随机笑话
+     * Get a random joke
      *
-     * @description 从免费 API 获取一个随机英文笑话
-     * @return 随机笑话内容
+     * @description Fetches a random English joke from a free API
+     * @return random joke content
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "random_joke", description = "获取一个随机笑话")
+    @Tool(name = "random_joke", description = "Get a random joke")
     public String randomJoke() {
         try {
             String url = "https://official-joke-api.appspot.com/random_joke";
@@ -176,30 +182,30 @@ public class DemoTools {
             if (response.statusCode() == 200) {
                 return response.body();
             }
-            return "获取笑话失败";
+            return "Failed to fetch joke";
         } catch (Exception e) {
-            return "获取笑话失败: " + e.getMessage();
+            return "Failed to fetch joke: " + e.getMessage();
         }
     }
 
     /**
-     * 文本翻译
+     * Text translation
      *
-     * @description 通过 MyMemory 免费翻译 API 将文本从一种语言翻译为另一种语言
-     * @param text 待翻译文本
-     * @param from 源语言代码
-     * @param to 目标语言代码
-     * @return 翻译结果
+     * @description Translates text from one language to another via the MyMemory free translation API
+     * @param text text to translate
+     * @param from source language code
+     * @param to target language code
+     * @return translation result
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "translate", description = "将文本从一种语言翻译为另一种语言。语言代码如: zh(中文), en(英文), ja(日文), ko(韩文), fr(法文), de(德文)")
+    @Tool(name = "translate", description = "Translate text from one language to another. Language codes: zh(Chinese), en(English), ja(Japanese), ko(Korean), fr(French), de(German), etc.")
     public String translate(
-            @ToolParam(name = "text", description = "待翻译的文本") String text,
-            @ToolParam(name = "from", description = "源语言代码，如 'zh'、'en'") String from,
-            @ToolParam(name = "to", description = "目标语言代码，如 'en'、'ja'") String to) {
+            @ToolParam(name = "text", description = "Text to translate") String text,
+            @ToolParam(name = "from", description = "Source language code, e.g. 'zh', 'en'") String from,
+            @ToolParam(name = "to", description = "Target language code, e.g. 'en', 'ja'") String to) {
         try {
-            String encoded = java.net.URLEncoder.encode(text, "UTF-8");
+            String encoded = URLEncoder.encode(text, StandardCharsets.UTF_8);
             String url = "https://api.mymemory.translated.net/get?q=" + encoded + "&langpair=" + from + "|" + to;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
@@ -215,31 +221,31 @@ public class DemoTools {
                     start += 18;
                     int end = body.indexOf("\"", start);
                     if (end > start) {
-                        return "翻译结果: " + body.substring(start, end);
+                        return "Translation result: " + body.substring(start, end);
                     }
                 }
-                return "翻译结果: " + body;
+                return "Translation result: " + body;
             }
-            return "翻译失败";
+            return "Translation failed";
         } catch (Exception e) {
-            return "翻译失败: " + e.getMessage();
+            return "Translation failed: " + e.getMessage();
         }
     }
 
     /**
-     * 生成短链接
+     * Generate short URL
      *
-     * @description 通过 is.gd 免费 API 将长 URL 缩短为短链接
-     * @param url 需要缩短的长 URL
-     * @return 短链接地址
+     * @description Shortens a long URL via the is.gd free API
+     * @param url long URL to shorten
+     * @return shortened URL
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "url_shorten", description = "将长URL缩短为短链接")
+    @Tool(name = "url_shorten", description = "Shorten a long URL")
     public String urlShorten(
-            @ToolParam(name = "url", description = "需要缩短的URL") String url) {
+            @ToolParam(name = "url", description = "URL to shorten") String url) {
         try {
-            String encoded = java.net.URLEncoder.encode(url, "UTF-8");
+            String encoded = URLEncoder.encode(url, StandardCharsets.UTF_8);
             String apiUrl = "https://is.gd/create.php?format=simple&url=" + encoded;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
@@ -249,40 +255,40 @@ public class DemoTools {
                     .build();
             HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200 && !response.body().isBlank()) {
-                return "短链接: " + response.body().trim();
+                return "Short URL: " + response.body().trim();
             }
-            return "短链接生成失败";
+            return "Short URL generation failed";
         } catch (Exception e) {
-            return "短链接生成失败: " + e.getMessage();
+            return "Short URL generation failed: " + e.getMessage();
         }
     }
 
     /**
-     * Unicode 字符查询
+     * Unicode character lookup
      *
-     * @description 查询指定字符的 Unicode 信息，包括编码点、名称和类型
-     * @param character 要查询的字符
-     * @return Unicode 字符信息
+     * @description Queries Unicode information for the specified character, including code point, name and type
+     * @param character character to look up
+     * @return Unicode character information
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    @Tool(name = "unicode_lookup", description = "查询字符的Unicode编码信息")
+    @Tool(name = "unicode_lookup", description = "Query Unicode encoding information for a character")
     public String unicodeLookup(
-            @ToolParam(name = "character", description = "要查询的字符，如 '中' 或 'A'") String character) {
+            @ToolParam(name = "character", description = "Character to look up, e.g. 'A' or any Unicode character") String character) {
         if (character == null || character.isEmpty()) {
-            return "请输入一个字符";
+            return "Please enter a character";
         }
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < character.length(); i++) {
             char c = character.charAt(i);
             int codePoint = Character.codePointAt(character, i);
-            sb.append(String.format("字符: '%c' | Unicode: U+%04X | 十进制: %d | 名称: %s | 类型: %s",
+            sb.append(String.format("Character: '%c' | Unicode: U+%04X | Decimal: %d | Name: %s | Type: %s",
                     c, codePoint, codePoint,
                     Character.getName(codePoint),
-                    Character.getType(c) == Character.OTHER_LETTER ? "字母(其他)" :
-                    Character.isLetter(c) ? "字母" :
-                    Character.isDigit(c) ? "数字" :
-                    Character.isWhitespace(c) ? "空白" : "符号"));
+                    Character.getType(c) == Character.OTHER_LETTER ? "Letter(Other)" :
+                    Character.isLetter(c) ? "Letter" :
+                    Character.isDigit(c) ? "Digit" :
+                    Character.isWhitespace(c) ? "Whitespace" : "Symbol"));
             if (Character.isHighSurrogate(c)) i++;
             if (i < character.length() - 1) sb.append("\n");
         }

@@ -1,6 +1,5 @@
 package com.smart.agent.agent.config;
 
-import com.smart.agent.constant.AgentConstants;
 import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.model.OpenAIChatModel;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,9 +7,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Agent 模型配置类
+ * Agent model configuration class.
  *
- * @description 配置各类 LLM 模型 Bean，包括默认模型、快速模型、子 Agent 模型和轻量模型
+ * @description Configure various LLM model beans, including default, fast, sub-agent, and lightweight models
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -30,11 +29,20 @@ public class AgentModelConfig {
     @Value("${llm.sub-api-key:${llm.api-key}}")
     private String subLlmApiKey;
 
+    @Value("${llm.model:qwen-max}")
+    private String defaultModelName;
+
+    @Value("${llm.fast-model:qwen-turbo}")
+    private String fastModelName;
+
+    @Value("${llm.light-model:qwen-turbo}")
+    private String lightModelName;
+
     /**
-     * 创建默认模型
+     * Create default model.
      *
-     * @description 主 Agent 使用的默认 LLM 模型，支持深度思考
-     * @return OpenAIChatModel 默认模型实例
+     * @description Default LLM model used by the main agent, supports deep reasoning
+     * @return default model instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -44,15 +52,15 @@ public class AgentModelConfig {
                 .apiKey(llmApiKey)
                 .baseUrl(llmBaseUrl)
                 .endpointPath(llmEndpointPath)
-                .modelName(AgentConstants.ModelConstants.DEFAULT_MODEL)
+                .modelName(defaultModelName)
                 .build();
     }
 
     /**
-     * 创建快速模型
+     * Create fast model.
      *
-     * @description Supervisor 使用的快速响应模型，关闭深度思考并启用联网搜索
-     * @return OpenAIChatModel 快速模型实例
+     * @description Fast response model used by the supervisor, with deep reasoning disabled and web search enabled
+     * @return fast model instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -67,16 +75,16 @@ public class AgentModelConfig {
                 .apiKey(llmApiKey)
                 .baseUrl(llmBaseUrl)
                 .endpointPath(llmEndpointPath)
-                .modelName(AgentConstants.ModelConstants.FAST_MODEL)
+                .modelName(fastModelName)
                 .generateOptions(noThinkingOptions)
                 .build();
     }
 
     /**
-     * 创建子 Agent 默认模型
+     * Create sub-agent default model.
      *
-     * @description 子 Agent 使用的默认模型，可配置独立的 API Key
-     * @return OpenAIChatModel 子 Agent 默认模型实例
+     * @description Default model used by sub-agents, supports independent API key configuration
+     * @return sub-agent default model instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -91,16 +99,16 @@ public class AgentModelConfig {
                 .apiKey(subLlmApiKey)
                 .baseUrl(llmBaseUrl)
                 .endpointPath(llmEndpointPath)
-                .modelName(AgentConstants.ModelConstants.DEFAULT_MODEL)
+                .modelName(defaultModelName)
                 .generateOptions(noThinkingOptions)
                 .build();
     }
 
     /**
-     * 创建子 Agent 快速模型
+     * Create sub-agent fast model.
      *
-     * @description 子 Agent 使用的快速响应模型
-     * @return OpenAIChatModel 子 Agent 快速模型实例
+     * @description Fast response model used by sub-agents
+     * @return sub-agent fast model instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -115,16 +123,16 @@ public class AgentModelConfig {
                 .apiKey(subLlmApiKey)
                 .baseUrl(llmBaseUrl)
                 .endpointPath(llmEndpointPath)
-                .modelName(AgentConstants.ModelConstants.FAST_MODEL)
+                .modelName(fastModelName)
                 .generateOptions(noThinkingOptions)
                 .build();
     }
 
     /**
-     * 创建轻量模型
+     * Create lightweight model.
      *
-     * @description 用于消息意图分类等轻量任务的小模型
-     * @return OpenAIChatModel 轻量模型实例
+     * @description Small model for lightweight tasks such as message intent classification
+     * @return lightweight model instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -138,7 +146,7 @@ public class AgentModelConfig {
                 .apiKey(llmApiKey)
                 .baseUrl(llmBaseUrl)
                 .endpointPath(llmEndpointPath)
-                .modelName(AgentConstants.ModelConstants.LIGHT_MODEL)
+                .modelName(lightModelName)
                 .generateOptions(noThinkingOptions)
                 .build();
     }

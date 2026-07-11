@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * RAG检索增强生成服务
+ * RAG (Retrieval-Augmented Generation) service.
  *
- * @description 整合向量嵌入服务和Milvus向量存储，提供文本索引和语义检索功能，实现检索增强生成（RAG）能力
+ * @description Integrates the vector embedding service and Milvus vector store to provide
+ *              text indexing and semantic retrieval capabilities for retrieval-augmented
+ *              generation (RAG).
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -27,11 +29,13 @@ public class RagService {
     }
 
     /**
-     * 语义检索
+     * Semantic retrieval.
      *
-     * @description 根据查询文本进行语义检索，使用默认topK值返回相关文档内容
-     * @param query 查询文本
-     * @return 检索到的相关文档内容，多条结果以分隔符连接，无结果时返回空字符串
+     * @description Performs semantic retrieval based on the query text,
+     *              returning relevant document content using the default topK value.
+     * @param query query text
+     * @return relevant document content with multiple results joined by a delimiter;
+     *         empty string if no results
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -40,12 +44,14 @@ public class RagService {
     }
 
     /**
-     * 语义检索（指定数量）
+     * Semantic retrieval (with specified count).
      *
-     * @description 根据查询文本进行语义检索，将查询文本向量化后在Milvus中搜索最相似的文档
-     * @param query 查询文本
-     * @param topK 返回结果的最大数量
-     * @return 检索到的相关文档内容，多条结果以分隔符连接，无结果时返回空字符串
+     * @description Performs semantic retrieval based on the query text, vectorizing the query
+     *              and searching Milvus for the most similar documents.
+     * @param query query text
+     * @param topK maximum number of results to return
+     * @return relevant document content with multiple results joined by a delimiter;
+     *         empty string if no results
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -67,11 +73,12 @@ public class RagService {
     }
 
     /**
-     * 文本索引
+     * Text indexing.
      *
-     * @description 将文本内容向量化并存入Milvus向量数据库，建立可检索的知识索引
-     * @param id 文档唯一标识
-     * @param text 待索引的文本内容
+     * @description Vectorizes the text content and stores it in the Milvus vector database
+     *              to build a searchable knowledge index.
+     * @param id document unique identifier
+     * @param text text content to index
      * @author Jiangbo Li
      * @date 2026-06-10
      */

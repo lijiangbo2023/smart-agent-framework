@@ -9,9 +9,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * MCP客户端配置类
+ * MCP client configuration.
  *
- * @description 负责创建和配置MCP（Model Context Protocol）客户端，通过SSE传输方式连接MCP服务端
+ * @description Responsible for creating and configuring the MCP (Model Context Protocol) client,
+ *              connecting to the MCP server via SSE transport.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -27,10 +28,11 @@ public class McpClientConfig {
     private String mcpServerName;
 
     /**
-     * 创建MCP客户端包装器
+     * Create the MCP client wrapper.
      *
-     * @description 根据配置的MCP服务端地址和名称，通过SSE传输方式创建同步MCP客户端实例，仅在配置了mcp.server.url时生效
-     * @return MCP客户端包装器实例
+     * @description Creates a synchronous MCP client instance via SSE transport using the
+     *              configured server address and name. Only active when mcp.server.url is set.
+     * @return MCP client wrapper instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */

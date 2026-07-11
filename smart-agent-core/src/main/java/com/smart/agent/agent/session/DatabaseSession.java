@@ -11,6 +11,7 @@ import io.agentscope.core.state.SimpleSessionKey;
 import io.agentscope.core.state.State;
 import io.agentscope.core.util.JsonUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -21,12 +22,14 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * 数据库会话实现
+ * Database-backed session implementation
  *
- * @description 基于MySQL数据库的Session实现，提供Agent会话状态的持久化存储。支持消息条数限制和时间窗口过滤，确保上下文不会无限增长。通过组合键（userId + sessionId）隔离不同用户和会话的数据
+ * @description MySQL-based Session implementation providing persistent storage for Agent session state. Supports message count limits and time window filtering to prevent unbounded context growth. Data is isolated by composite key (userId + sessionId) across different users and sessions.
+ *              When Redis is configured, Read-Through caching is automatically enabled: read operations query Redis cache first, falling back to MySQL on cache miss and writing back to cache; write and delete operations automatically invalidate Redis cache.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -36,55 +39,77 @@ public class DatabaseSession implements Session {
 
     private static final String DEFAULT_SESSION_ID = "default";
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+    private static final String REDIS_KEY_PREFIX = "session:";
 
     private final AgentSessionMapper mapper;
     private final String agentName;
     private final int maxMessages;
     private final Duration timeWindow;
     private final SessionIdentity fixedIdentity;
+    private final RedisTemplate<String, String> redisTemplate;
 
     /**
-     * 构造数据库会话实例
+     * Constructs a database session instance
      *
-     * @description 创建不绑定固定组合键的数据库会话实例，会话标识从每次操作的SessionKey中动态解析
-     * @param mapper 会话数据访问Mapper
-     * @param agentName Agent名称
-     * @param maxMessages 最大消息条数
-     * @param timeWindow 消息有效时间窗口
+     * @description Creates a database session instance without a fixed composite key; session identity is dynamically resolved from the SessionKey on each operation
+     * @param mapper session data access mapper
+     * @param agentName agent name
+     * @param maxMessages maximum number of messages
+     * @param timeWindow message validity time window
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     public DatabaseSession(AgentSessionMapper mapper, String agentName, int maxMessages, Duration timeWindow) {
-        this(mapper, agentName, maxMessages, timeWindow, null);
+        this(mapper, agentName, maxMessages, timeWindow, null, null);
     }
 
     /**
-     * 构造数据库会话实例（带固定组合键）
+     * Constructs a database session instance with a fixed composite key
      *
-     * @description 创建绑定固定组合键的数据库会话实例，所有操作使用预设的compositeKey而非从SessionKey解析
-     * @param mapper 会话数据访问Mapper
-     * @param agentName Agent名称
-     * @param maxMessages 最大消息条数
-     * @param timeWindow 消息有效时间窗口
-     * @param compositeKey 固定组合键（userId + separator + sessionId），为null时退化为动态解析模式
+     * @description Creates a database session instance bound to a fixed composite key; all operations use the preset compositeKey rather than resolving from SessionKey
+     * @param mapper session data access mapper
+     * @param agentName agent name
+     * @param maxMessages maximum number of messages
+     * @param timeWindow message validity time window
+     * @param compositeKey fixed composite key (userId + separator + sessionId); when null, falls back to dynamic resolution mode
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     public DatabaseSession(AgentSessionMapper mapper, String agentName, int maxMessages, Duration timeWindow, String compositeKey) {
+        this(mapper, agentName, maxMessages, timeWindow, compositeKey, null);
+    }
+
+    /**
+     * Constructs a database session instance with Redis caching
+     *
+     * @description Creates a database session instance with Redis caching support; reads query Redis first, writes automatically invalidate cache
+     * @param mapper session data access mapper
+     * @param agentName agent name
+     * @param maxMessages maximum number of messages
+     * @param timeWindow message validity time window
+     * @param compositeKey fixed composite key (userId + separator + sessionId); when null, falls back to dynamic resolution mode
+     * @param redisTemplate Redis template; when null, falls back to pure MySQL mode
+     * @author Jiangbo Li
+     * @date 2026-06-16
+     */
+    public DatabaseSession(AgentSessionMapper mapper, String agentName, int maxMessages, Duration timeWindow,
+                           String compositeKey, RedisTemplate<String, String> redisTemplate) {
         this.mapper = mapper;
         this.agentName = agentName;
         this.maxMessages = maxMessages;
         this.timeWindow = timeWindow;
         this.fixedIdentity = compositeKey != null ? parseCompositeKey(compositeKey) : null;
+        this.redisTemplate = redisTemplate;
     }
 
     /**
-     * 保存单个状态对象
+     * Saves a single state object
      *
-     * @description 将单个State对象序列化为JSON并持久化到数据库，若已存在则更新
-     * @param sessionKey 会话键
-     * @param key 数据键
-     * @param value 状态对象
+     * @description Serializes a single State object to JSON and persists it to the database, updating if it already exists.
+     *              Automatically invalidates the corresponding Redis cache after write to ensure the next read retrieves the latest data.
+     * @param sessionKey session key
+     * @param key data key
+     * @param value state object
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -96,12 +121,13 @@ public class DatabaseSession implements Session {
     }
 
     /**
-     * 保存状态对象列表
+     * Saves a list of state objects
      *
-     * @description 将State对象列表序列化为JSON并持久化到数据库，若已存在则更新
-     * @param sessionKey 会话键
-     * @param key 数据键
-     * @param values 状态对象列表
+     * @description Serializes a list of State objects to JSON and persists it to the database, updating if it already exists.
+     *              Automatically invalidates the corresponding Redis cache after write to ensure the next read retrieves the latest data.
+     * @param sessionKey session key
+     * @param key data key
+     * @param values list of state objects
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -113,19 +139,36 @@ public class DatabaseSession implements Session {
     }
 
     /**
-     * 获取单个状态对象
+     * Retrieves a single state object
      *
-     * @description 从数据库查询指定键的状态数据，反序列化为目标类型。超出时间窗口的数据将返回空
-     * @param sessionKey 会话键
-     * @param key 数据键
-     * @param type 目标类型
-     * @return 状态对象的Optional包装，不存在或已过期时返回空
+     * @description Queries Redis cache first for the state data of the specified key; on cache miss, queries the database and writes back to Redis cache (Read-Through strategy).
+     *              Deserializes to the target type; data outside the time window returns empty. Automatically degrades to direct database query when Redis is unavailable.
+     * @param sessionKey session key
+     * @param key data key
+     * @param type target type
+     * @return Optional wrapper of the state object; empty if not found or expired
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
     public <T extends State> Optional<T> get(SessionKey sessionKey, String key, Class<T> type) {
         SessionIdentity identity = resolveSessionIdentity(sessionKey);
+
+        // Try Redis cache first
+        if (redisTemplate != null) {
+            try {
+                String cacheKey = buildRedisKey(identity, key);
+                String cached = redisTemplate.opsForValue().get(cacheKey);
+                if (cached != null && !cached.isEmpty()) {
+                    T result = JsonUtils.getJsonCodec().fromJson(cached, type);
+                    log.debug("Session cache hit: {}", cacheKey);
+                    return Optional.ofNullable(result);
+                }
+            } catch (Exception e) {
+                log.warn("Session cache read failed: {}", e.getMessage());
+            }
+        }
+
         AgentSessionEntity entity = selectOne(identity, key);
         if (entity == null || entity.getDataValue() == null) {
             return Optional.empty();
@@ -133,31 +176,76 @@ public class DatabaseSession implements Session {
         if (!isWithinTimeWindow(entity)) {
             return Optional.empty();
         }
+
+        // Write back to Redis cache
+        if (redisTemplate != null) {
+            try {
+                String cacheKey = buildRedisKey(identity, key);
+                long ttlMinutes = timeWindow.toMinutes() > 0 ? timeWindow.toMinutes() : 30;
+                redisTemplate.opsForValue().set(cacheKey, entity.getDataValue(), ttlMinutes, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                log.warn("Session cache write failed: {}", e.getMessage());
+            }
+        }
+
         T result = JsonUtils.getJsonCodec().fromJson(entity.getDataValue(), type);
         return Optional.ofNullable(result);
     }
 
     /**
-     * 获取状态对象列表
+     * Retrieves a list of state objects
      *
-     * @description 从数据库查询指定键的状态列表数据，按时间窗口和最大消息数进行过滤和截断，从最新消息向前取最多maxMessages条未过期消息
-     * @param sessionKey 会话键
-     * @param key 数据键
-     * @param itemType 列表元素类型
-     * @return 过滤后的状态对象列表，不存在时返回空列表
+     * @description Queries Redis cache first for the state list data of the specified key; on cache miss, queries the database and writes back to Redis cache (Read-Through strategy).
+     *              Filters and truncates by time window and maximum message count, taking up to maxMessages unexpired messages from newest to oldest.
+     *              Automatically degrades to direct database query when Redis is unavailable.
+     * @param sessionKey session key
+     * @param key data key
+     * @param itemType list element type
+     * @return filtered list of state objects; empty list if not found
      * @author Jiangbo Li
      * @date 2026-06-10
      */
     @Override
     public <T extends State> List<T> getList(SessionKey sessionKey, String key, Class<T> itemType) {
         SessionIdentity identity = resolveSessionIdentity(sessionKey);
-        AgentSessionEntity entity = selectOne(identity, key);
-        if (entity == null || entity.getDataValue() == null) {
-            return List.of();
+        String dataValue = null;
+
+        // Try Redis cache first
+        if (redisTemplate != null) {
+            try {
+                String cacheKey = buildRedisKey(identity, key);
+                dataValue = redisTemplate.opsForValue().get(cacheKey);
+                if (dataValue != null && !dataValue.isEmpty()) {
+                    log.debug("Session cache hit: {}", cacheKey);
+                }
+            } catch (Exception e) {
+                log.warn("Session cache read failed: {}", e.getMessage());
+                dataValue = null;
+            }
+        }
+
+        // Fallback to MySQL
+        if (dataValue == null || dataValue.isEmpty()) {
+            AgentSessionEntity entity = selectOne(identity, key);
+            if (entity == null || entity.getDataValue() == null) {
+                return List.of();
+            }
+            dataValue = entity.getDataValue();
+
+            // Write back to Redis cache
+            if (redisTemplate != null) {
+                try {
+                    String cacheKey = buildRedisKey(identity, key);
+                    long ttlMinutes = timeWindow.toMinutes() > 0 ? timeWindow.toMinutes() : 30;
+                    redisTemplate.opsForValue().set(cacheKey, dataValue, ttlMinutes, TimeUnit.MINUTES);
+                } catch (Exception e) {
+                    log.warn("Session cache write failed: {}", e.getMessage());
+                }
+            }
         }
 
         List<T> allItems = JsonUtils.getJsonCodec().fromJson(
-                entity.getDataValue(),
+                dataValue,
                 new TypeReference<>() {
                     @Override
                     public java.lang.reflect.Type getType() {
@@ -203,11 +291,11 @@ public class DatabaseSession implements Session {
     }
 
     /**
-     * 判断会话是否存在
+     * Checks whether the session exists
      *
-     * @description 检查数据库中是否存在指定会话键对应的会话数据
-     * @param sessionKey 会话键
-     * @return true表示会话存在，false表示不存在
+     * @description Checks whether session data for the given session key exists in the database
+     * @param sessionKey session key
+     * @return true if the session exists, false otherwise
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -224,10 +312,11 @@ public class DatabaseSession implements Session {
     }
 
     /**
-     * 删除整个会话
+     * Deletes the entire session
      *
-     * @description 删除数据库中指定会话键对应的所有会话数据
-     * @param sessionKey 会话键
+     * @description Deletes all session data for the given session key from the database and batch-invalidates all related Redis cache entries for this session.
+     *              Uses pattern matching to find and delete all associated cache keys.
+     * @param sessionKey session key
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -240,14 +329,33 @@ public class DatabaseSession implements Session {
                         .eq(AgentSessionEntity::getAgentName, agentName)
                         .eq(AgentSessionEntity::getSessionId, identity.sessionId)
         );
+
+        // Invalidate all Redis cache for this session using SCAN instead of KEYS
+        if (redisTemplate != null) {
+            try {
+                String pattern = REDIS_KEY_PREFIX + identity.userId + ":" + agentName + ":" + identity.sessionId + ":*";
+                List<String> keysToDelete = new ArrayList<>();
+                try (org.springframework.data.redis.core.Cursor<String> cursor = redisTemplate.scan(
+                        org.springframework.data.redis.core.ScanOptions.scanOptions().match(pattern).count(100).build())) {
+                    while (cursor.hasNext()) {
+                        keysToDelete.add(cursor.next());
+                    }
+                }
+                if (!keysToDelete.isEmpty()) {
+                    redisTemplate.delete(keysToDelete);
+                }
+            } catch (Exception e) {
+                log.warn("Session cache invalidate failed: {}", e.getMessage());
+            }
+        }
     }
 
     /**
-     * 删除会话中指定键的数据
+     * Deletes data for a specific key in the session
      *
-     * @description 删除数据库中指定会话键和数据键对应的单条会话数据
-     * @param sessionKey 会话键
-     * @param key 数据键
+     * @description Deletes the single session record matching the given session key and data key from the database, and invalidates the corresponding Redis cache.
+     * @param sessionKey session key
+     * @param key data key
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -261,13 +369,23 @@ public class DatabaseSession implements Session {
                         .eq(AgentSessionEntity::getSessionId, identity.sessionId)
                         .eq(AgentSessionEntity::getDataKey, key)
         );
+
+        // Invalidate Redis cache
+        if (redisTemplate != null) {
+            try {
+                String cacheKey = buildRedisKey(identity, key);
+                redisTemplate.delete(cacheKey);
+            } catch (Exception e) {
+                log.warn("Session cache invalidate failed: {}", e.getMessage());
+            }
+        }
     }
 
     /**
-     * 列出所有会话键
+     * Lists all session keys
      *
-     * @description 查询当前Agent下所有已存储的会话键，按userId和sessionId分组去重
-     * @return 会话键集合
+     * @description Queries all stored session keys under the current agent, deduplicated by userId and sessionId grouping
+     * @return set of session keys
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -286,29 +404,16 @@ public class DatabaseSession implements Session {
     }
 
     private void upsert(SessionIdentity identity, String dataKey, String dataValue) {
-        AgentSessionEntity existing = selectOne(identity, dataKey);
-        Date now = new Date();
-        if (existing != null) {
-            existing.setDataValue(dataValue);
-            existing.setGmtModified(now);
-            mapper.update(existing,
-                    new LambdaQueryWrapper<AgentSessionEntity>()
-                            .eq(AgentSessionEntity::getUserId, identity.userId)
-                            .eq(AgentSessionEntity::getAgentName, agentName)
-                            .eq(AgentSessionEntity::getSessionId, identity.sessionId)
-                            .eq(AgentSessionEntity::getDataKey, dataKey)
-            );
-        } else {
-            AgentSessionEntity entity = AgentSessionEntity.builder()
-                    .userId(identity.userId)
-                    .agentName(agentName)
-                    .sessionId(identity.sessionId)
-                    .dataKey(dataKey)
-                    .dataValue(dataValue)
-                    .gmtCreate(now)
-                    .gmtModified(now)
-                    .build();
-            mapper.insert(entity);
+        mapper.upsertSession(identity.userId, agentName, identity.sessionId, dataKey, dataValue);
+
+        // Invalidate Redis cache
+        if (redisTemplate != null) {
+            try {
+                String cacheKey = buildRedisKey(identity, dataKey);
+                redisTemplate.delete(cacheKey);
+            } catch (Exception e) {
+                log.warn("Session cache invalidate failed: {}", e.getMessage());
+            }
         }
     }
 
@@ -353,16 +458,20 @@ public class DatabaseSession implements Session {
         return new SessionIdentity(compositeKey, DEFAULT_SESSION_ID);
     }
 
+    private String buildRedisKey(SessionIdentity identity, String dataKey) {
+        return REDIS_KEY_PREFIX + identity.userId + ":" + agentName + ":" + identity.sessionId + ":" + dataKey;
+    }
+
     private record SessionIdentity(String userId, String sessionId) {
     }
 
     /**
-     * 构建会话组合键
+     * Builds a session composite key
      *
-     * @description 将userId和sessionId拼接为组合键，sessionId为空时使用默认值
-     * @param userId 用户ID
-     * @param sessionId 会话ID，为null或空时使用默认值"default"
-     * @return 组合键字符串
+     * @description Concatenates userId and sessionId into a composite key; uses default value when sessionId is empty
+     * @param userId user ID
+     * @param sessionId session ID; uses default value "default" when null or empty
+     * @return composite key string
      * @author Jiangbo Li
      * @date 2026-06-10
      */

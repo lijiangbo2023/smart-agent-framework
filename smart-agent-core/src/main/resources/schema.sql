@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS agent_session (
     session_id      VARCHAR(128)    NOT NULL DEFAULT '',
     data_key        VARCHAR(256)    NOT NULL DEFAULT '',
     data_value      MEDIUMTEXT,
+    UNIQUE INDEX uk_user_agent_session_key (user_id, agent_name, session_id, data_key),
     INDEX idx_session_user (user_id, session_id),
     INDEX idx_session_agent (agent_name, session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -11,10 +11,11 @@ import lombok.NoArgsConstructor;
 import java.util.Date;
 
 /**
- * Agent会话映射实体
+ * Agent conversation session entity
  *
- * @description 对应agent_conversation_session_mapper表，维护会话ID与Session的映射关系，
- *              支持按用户、会话类型和业务名称进行会话关联。
+ * @description Maps to the agent_conversation_session_mapper table, maintaining the mapping between
+ *              conversation IDs and sessions, supporting session association by user, conversation type
+ *              and business name.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0

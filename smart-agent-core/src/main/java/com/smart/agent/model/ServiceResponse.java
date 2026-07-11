@@ -3,9 +3,9 @@ package com.smart.agent.model;
 import lombok.Data;
 
 /**
- * 通用服务响应包装类
+ * Generic service response wrapper.
  *
- * @description 统一的API响应封装，包含状态码、提示信息、时间戳和泛型数据体，提供成功与失败的静态构造方法
+ * @description A unified API response wrapper containing status code, message, timestamp, and generic data body, providing static factory methods for success and failure responses
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -22,10 +22,10 @@ public class ServiceResponse<T> {
     public static final int CODE_FAIL = -1;
 
     /**
-     * 判断响应是否成功
+     * Check whether the response is successful.
      *
-     * @description 根据响应状态码判断本次请求是否处理成功
-     * @return true表示成功，false表示失败
+     * @description Determines whether this request was processed successfully based on the response status code
+     * @return true if successful, false if failed
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -43,11 +43,11 @@ public class ServiceResponse<T> {
     }
 
     /**
-     * 构建失败响应
+     * Build a failure response.
      *
-     * @description 创建一个不携带数据体的失败响应对象
-     * @param msg 失败提示信息
-     * @return 失败响应对象
+     * @description Creates a failure response object without a data body
+     * @param msg the failure message
+     * @return the failure response object
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -56,12 +56,12 @@ public class ServiceResponse<T> {
     }
 
     /**
-     * 构建携带数据的失败响应
+     * Build a failure response with data.
      *
-     * @description 创建一个携带数据体的失败响应对象
-     * @param msg 失败提示信息
-     * @param result 响应数据体
-     * @return 失败响应对象
+     * @description Creates a failure response object with a data body
+     * @param msg the failure message
+     * @param result the response data body
+     * @return the failure response object
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -70,11 +70,11 @@ public class ServiceResponse<T> {
     }
 
     /**
-     * 构建成功响应
+     * Build a success response.
      *
-     * @description 创建一个携带数据体的成功响应对象，提示信息默认为"success"
-     * @param result 响应数据体
-     * @return 成功响应对象
+     * @description Creates a success response object with a data body, defaulting the message to "success"
+     * @param result the response data body
+     * @return the success response object
      * @author Jiangbo Li
      * @date 2026-06-10
      */

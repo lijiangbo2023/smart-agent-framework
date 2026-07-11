@@ -1,16 +1,19 @@
 package com.smart.agent.agent.service;
 
-import com.smart.agent.agent.provider.AbstractSubAgent;
+import com.smart.agent.agent.provider.SubAgent;
 import com.smart.agent.agent.session.DatabaseSession;
+import com.smart.agent.agent.session.SessionLockService;
 import com.smart.agent.component.AgentChatComponent;
 import com.smart.agent.constant.enums.MessageChannel;
 import com.smart.agent.constant.enums.MessageStatus;
+import com.smart.agent.exception.SessionBusyException;
 import com.smart.agent.model.ChatContext;
 import com.smart.agent.model.ChatResult;
 import com.smart.agent.model.ChatStreamResult;
 import com.smart.agent.nacos.AgentPromptManager;
 import com.smart.agent.persistence.mapper.AgentSessionMapper;
 import com.smart.agent.service.AgentChatMessageService;
+import com.smart.agent.util.SseEventHelper;
 
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.agent.Event;
@@ -32,26 +35,34 @@ import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.subagent.SubAgentConfig;
 import io.agentscope.core.tool.subagent.SubAgentProvider;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
- * Supervisor Agent服务
+ * Supervisor Agent Service
  *
- * @description 核心Supervisor Agent服务，负责协调和编排多个子Agent。接收用户消息后构建带会话上下文的Supervisor Agent，将请求分发至合适的子Agent处理，并汇总返回结果。支持同步和流式两种对话模式
+ * @description Core Supervisor Agent service responsible for coordinating and orchestrating multiple sub-agents.
+ *              Upon receiving a user message, it builds a Supervisor Agent with session context, dispatches
+ *              the request to the appropriate sub-agent, and aggregates the result. Supports both synchronous
+ *              and streaming conversation modes.
+ *              When Redis is configured, session data (DatabaseSession) automatically leverages a Redis cache
+ *              layer to reduce MySQL read pressure.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -82,61 +93,91 @@ public class SupervisorAgentService {
     private static final String AGENT_NAME = "Supervisor";
     private static final int MAX_MESSAGES = 30;
     private static final Duration TIME_WINDOW = Duration.ofMinutes(30);
-    private static final String SESSION_ID_PREFIX_PATTERN = "session_id: [\\w-]+\\n\\n";
     private static final String ERROR_FALLBACK_TEXT = "Agent未返回有效回复";
 
     private final OpenAIChatModel supervisorModel;
-    private final List<AbstractSubAgent> subAgents;
+    private final List<SubAgent> subAgents;
     private final AgentSessionMapper agentSessionMapper;
     private final AgentPromptManager agentPromptManager;
     private final AgentChatMessageService agentChatMessageService;
     private final AgentChatComponent agentChatComponent;
+    private final SessionLockService sessionLockService;
     private final Set<String> subAgentToolNames;
     private final Map<String, String> subAgentNameToTool;
 
+    /** Pre-computed immutable metadata for each sub-agent, avoiding per-request getter calls and iteration. */
+    private final List<SubAgentMeta> subAgentMetas;
+
+    /** Shared immutable execution config, reused across all requests. */
+    private final ExecutionConfig toolExecutionConfig;
+
+    /** Shared stateless hook instance, safe to reuse across all ReActAgent builds. */
+    private final Hook subAgentBypassStopHook;
+
+    @Autowired(required = false)
+    private RedisTemplate<String, String> redisTemplate;
+
     public SupervisorAgentService(@Qualifier("fastModel") OpenAIChatModel supervisorModel,
-                                  List<AbstractSubAgent> subAgents,
+                                  List<SubAgent> subAgents,
                                   AgentSessionMapper agentSessionMapper,
                                   AgentPromptManager agentPromptManager,
                                   AgentChatMessageService agentChatMessageService,
-                                  AgentChatComponent agentChatComponent) {
+                                  AgentChatComponent agentChatComponent,
+                                  SessionLockService sessionLockService) {
         this.supervisorModel = supervisorModel;
         this.subAgents = subAgents;
         this.agentSessionMapper = agentSessionMapper;
         this.agentPromptManager = agentPromptManager;
         this.agentChatMessageService = agentChatMessageService;
         this.agentChatComponent = agentChatComponent;
+        this.sessionLockService = sessionLockService;
         this.agentPromptManager.register(AGENT_NAME, DEFAULT_SUPERVISOR_PROMPT);
 
+        // Pre-compute sub-agent metadata: immutable across requests
         Set<String> tools = new HashSet<>();
         Map<String, String> nameToTool = new HashMap<>();
-        for (AbstractSubAgent agent : subAgents) {
+        List<SubAgentMeta> metas = new ArrayList<>();
+        for (SubAgent agent : subAgents) {
             tools.add(agent.getToolName());
             nameToTool.put(agent.getAgentName(), agent.getToolName());
+            @SuppressWarnings("unchecked")
+            SubAgentProvider<ReActAgent> provider = (SubAgentProvider<ReActAgent>) agent;
+            metas.add(new SubAgentMeta(
+                    agent.getAgentName(), agent.getToolName(), agent.getDescription(),
+                    agent.getMaxMessageLength(), agent.getTimeWindow(), provider));
         }
         this.subAgentToolNames = Set.copyOf(tools);
         this.subAgentNameToTool = Map.copyOf(nameToTool);
+        this.subAgentMetas = List.copyOf(metas);
+
+        // Pre-compute shared immutable objects
+        this.toolExecutionConfig = ExecutionConfig.builder()
+                .timeout(Duration.ofMinutes(10L))
+                .maxAttempts(1)
+                .build();
+        this.subAgentBypassStopHook = new SubAgentBypassStopHook();
+
         log.info("SupervisorAgentService initialized with sub-agents: {}", this.subAgentNameToTool);
     }
 
     private SupervisorSessionContext buildSupervisorWithSession(String userId, String sessionId) {
         String compositeKey = DatabaseSession.buildSessionKey(userId, sessionId);
 
-        DatabaseSession supervisorSession = new DatabaseSession(agentSessionMapper, AGENT_NAME, MAX_MESSAGES, TIME_WINDOW);
+        DatabaseSession supervisorSession = new DatabaseSession(
+                agentSessionMapper, AGENT_NAME, MAX_MESSAGES, TIME_WINDOW, null, redisTemplate);
 
         Toolkit supervisorToolkit = new Toolkit();
 
-        for (AbstractSubAgent agent : subAgents) {
+        // Use pre-computed metadata — no per-request getter calls or iteration overhead
+        for (SubAgentMeta meta : subAgentMetas) {
             DatabaseSession session = new DatabaseSession(
-                    agentSessionMapper, agent.getAgentName(),
-                    agent.getMaxMessageLength(), agent.getTimeWindow(), compositeKey);
-            @SuppressWarnings("unchecked")
-            SubAgentProvider<ReActAgent> original = (SubAgentProvider<ReActAgent>) agent;
+                    agentSessionMapper, meta.agentName(),
+                    meta.maxMessageLength(), meta.timeWindow(), compositeKey, redisTemplate);
             supervisorToolkit.registration()
-                    .subAgent(new LazySubAgentProvider(original, session, compositeKey, agent.getAgentName()),
+                    .subAgent(new SessionBoundSubAgentProvider(meta.provider(), session, compositeKey),
                             SubAgentConfig.builder()
-                                    .toolName(agent.getToolName())
-                                    .description(agent.getDescription())
+                                    .toolName(meta.toolName())
+                                    .description(meta.description())
                                     .forwardEvents(true)
                                     .session(session)
                                     .build())
@@ -151,12 +192,9 @@ public class SupervisorAgentService {
                 .model(supervisorModel)
                 .memory(new InMemoryMemory())
                 .toolkit(supervisorToolkit)
-                .hook(new SubAgentBypassStopHook())
+                .hook(subAgentBypassStopHook)
                 .maxIters(10)
-                .toolExecutionConfig(ExecutionConfig.builder()
-                        .timeout(Duration.ofMinutes(10L))
-                        .maxAttempts(1)
-                        .build())
+                .toolExecutionConfig(toolExecutionConfig)
                 .build();
 
         SessionManager sessionManager = SessionManager.forSessionId(compositeKey)
@@ -168,30 +206,29 @@ public class SupervisorAgentService {
         return new SupervisorSessionContext(supervisor, sessionManager);
     }
 
-    private static class LazySubAgentProvider implements SubAgentProvider<ReActAgent> {
+    /**
+     * Session-bound sub-agent provider.
+     *
+     * @description Wraps the original SubAgentProvider and binds it to a per-request session.
+     *              Unlike the old LazySubAgentProvider, this always returns a real agent —
+     *              {@code provide()} is only called when the Supervisor actually routes to this
+     *              sub-agent, so there is no waste from eager creation.
+     */
+    private static class SessionBoundSubAgentProvider implements SubAgentProvider<ReActAgent> {
         private final SubAgentProvider<ReActAgent> original;
         private final io.agentscope.core.session.Session session;
         private final String compositeKey;
-        private final String agentName;
-        private final AtomicBoolean firstCall = new AtomicBoolean(true);
 
-        LazySubAgentProvider(SubAgentProvider<ReActAgent> original, io.agentscope.core.session.Session session,
-                             String compositeKey, String agentName) {
+        SessionBoundSubAgentProvider(SubAgentProvider<ReActAgent> original,
+                                     io.agentscope.core.session.Session session,
+                                     String compositeKey) {
             this.original = original;
             this.session = session;
             this.compositeKey = compositeKey;
-            this.agentName = agentName;
         }
 
         @Override
         public ReActAgent provide() {
-            if (firstCall.getAndSet(false)) {
-                return ReActAgent.builder()
-                        .name(agentName)
-                        .memory(new InMemoryMemory())
-                        .toolkit(new Toolkit())
-                        .build();
-            }
             ReActAgent agent = original.provide();
             agent.loadFrom(session, compositeKey);
             return agent;
@@ -213,62 +250,73 @@ public class SupervisorAgentService {
     }
 
     /**
-     * 同步对话
+     * Synchronous conversation
      *
-     * @description 构建Supervisor Agent及其会话上下文，执行同步对话并返回结果。当仅有单个子Agent被调用时，直接透传子Agent的原始结果以避免Supervisor改写
-     * @param userId 用户ID
-     * @param sessionId 会话ID
-     * @param userMessage 用户消息文本
-     * @param channel 消息渠道
-     * @param businessName 业务名称
-     * @param conversationId 会话ID
-     * @param conversationType 会话类型
-     * @return 对话结果，包含消息ID和回复文本
+     * @description Builds the Supervisor Agent with its session context, executes a synchronous conversation,
+     *              and returns the result. When only a single sub-agent is invoked, the sub-agent's raw result
+     *              is passed through directly to avoid Supervisor rewriting.
+     * @param context chat context containing userId, sessionId, message, channel, and other metadata
+     * @return conversation result containing the message ID and reply text
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    public ChatResult chat(String userId, String sessionId, String userMessage,
-                           MessageChannel channel, String businessName,
-                           String conversationId, String conversationType) {
-        log.info("Supervisor received query, userId={}, sessionId={}", userId, sessionId);
-        long startTime = System.currentTimeMillis();
-        SupervisorSessionContext ctx = buildSupervisorWithSession(userId, sessionId);
-        ChatContext chatContext = new ChatContext(sessionId, userId, userMessage, channel, businessName, conversationId, conversationType);
-
-        ChatResult result = agentChatComponent.chat(ctx.supervisor(), ctx.sessionManager(), chatContext, ERROR_FALLBACK_TEXT);
-        long elapsed = System.currentTimeMillis() - startTime;
-        log.info("Supervisor completed, userId={}, sessionId={}, elapsed={}ms", userId, sessionId, elapsed);
-
-        String bypassText = tryBypassSingleSubagentResult(ctx.supervisor());
-        if (bypassText != null) {
-            agentChatMessageService.updateAgentOutput(result.messageId(), bypassText, MessageStatus.SUCCESS);
-            return new ChatResult(result.messageId(), bypassText);
+    public ChatResult chat(ChatContext context) {
+        String userId = context.userId();
+        String sessionId = context.sessionId();
+        String lockValue = sessionLockService.tryLock(userId, sessionId);
+        if (lockValue == null) {
+            throw new SessionBusyException("该会话正在处理中，请稍后再试");
         }
-        return result;
+        try {
+            log.info("Supervisor received query, userId={}, sessionId={}", userId, sessionId);
+            long startTime = System.currentTimeMillis();
+            SupervisorSessionContext ctx = buildSupervisorWithSession(userId, sessionId);
+
+            ChatResult result = agentChatComponent.chat(ctx.supervisor(), ctx.sessionManager(), context, ERROR_FALLBACK_TEXT);
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.info("Supervisor completed, userId={}, sessionId={}, elapsed={}ms", userId, sessionId, elapsed);
+
+            String bypassText = tryBypassSingleSubagentResult(ctx.supervisor());
+            if (bypassText != null) {
+                agentChatMessageService.updateAgentOutput(result.messageId(), bypassText, MessageStatus.SUCCESS);
+                return new ChatResult(result.messageId(), bypassText);
+            }
+            return result;
+        } finally {
+            sessionLockService.unlock(userId, sessionId, lockValue);
+        }
     }
 
     /**
-     * 流式对话
+     * Streaming conversation
      *
-     * @description 构建Supervisor Agent及其会话上下文，执行流式对话。通过自定义文本提取器处理子Agent的流式事件，实现实时输出
-     * @param userId 用户ID
-     * @param sessionId 会话ID
-     * @param userMessage 用户消息文本
-     * @param channel 消息渠道
-     * @param businessName 业务名称
-     * @param conversationId 会话ID
-     * @param conversationType 会话类型
-     * @return 流式对话结果
+     * @description Builds the Supervisor Agent with its session context and executes a streaming conversation.
+     *              A custom text extractor handles sub-agent streaming events to enable real-time output.
+     * @param context chat context containing userId, sessionId, message, channel, and other metadata
+     * @return streaming conversation result
      * @author Jiangbo Li
      * @date 2026-06-10
      */
-    public ChatStreamResult chatStream(String userId, String sessionId, String userMessage,
-                                       MessageChannel channel, String businessName,
-                                       String conversationId, String conversationType) {
-        SupervisorSessionContext ctx = buildSupervisorWithSession(userId, sessionId);
-        ChatContext chatContext = new ChatContext(sessionId, userId, userMessage, channel, businessName, conversationId, conversationType);
-        return agentChatComponent.chatStream(ctx.supervisor(), ctx.sessionManager(), chatContext,
-                buildStreamTextExtractor(ctx.supervisor(), sessionId));
+    public ChatStreamResult chatStream(ChatContext context) {
+        String userId = context.userId();
+        String sessionId = context.sessionId();
+        String lockValue = sessionLockService.tryLock(userId, sessionId);
+        if (lockValue == null) {
+            throw new SessionBusyException("该会话正在处理中，请稍后再试");
+        }
+        try {
+            SupervisorSessionContext ctx = buildSupervisorWithSession(userId, sessionId);
+            ChatStreamResult streamResult = agentChatComponent.chatStream(ctx.supervisor(), ctx.sessionManager(), context,
+                    buildStreamTextExtractor(ctx.supervisor(), sessionId));
+
+            Flux<Event> wrappedStream = streamResult.eventStream()
+                    .doFinally(signal -> sessionLockService.unlock(userId, sessionId, lockValue));
+
+            return new ChatStreamResult(streamResult.messageId(), wrappedStream, streamResult.latestTextRef());
+        } catch (Exception e) {
+            sessionLockService.unlock(userId, sessionId, lockValue);
+            throw e;
+        }
     }
 
     private Function<Event, String> buildStreamTextExtractor(ReActAgent supervisor, String sessionId) {
@@ -356,10 +404,7 @@ public class SupervisorAgentService {
     }
 
     private String stripSessionIdPrefix(String text) {
-        if (text == null || text.isEmpty()) {
-            return text;
-        }
-        return text.replaceFirst(SESSION_ID_PREFIX_PATTERN, "");
+        return SseEventHelper.stripSessionIdPrefix(text);
     }
 
     private String tryBypassSingleSubagentResult(ReActAgent supervisor) {
@@ -418,5 +463,21 @@ public class SupervisorAgentService {
     }
 
     private record SupervisorSessionContext(ReActAgent supervisor, SessionManager sessionManager) {
+    }
+
+    /**
+     * Pre-computed immutable metadata for a sub-agent.
+     *
+     * @description Captures all static properties of a sub-agent at construction time,
+     *              avoiding repeated getter calls and SubAgent iteration on each request.
+     */
+    private record SubAgentMeta(
+            String agentName,
+            String toolName,
+            String description,
+            Integer maxMessageLength,
+            Duration timeWindow,
+            SubAgentProvider<ReActAgent> provider
+    ) {
     }
 }

@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * Agent聊天消息Mapper
+ * Agent chat message Mapper
  *
- * @description 基于MyBatis-Plus的Agent聊天消息数据访问接口，提供对agent_chat_message表的基础CRUD操作。
+ * @description MyBatis-Plus based Agent chat message data access interface, providing basic CRUD operations
+ *              on the agent_chat_message table.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0

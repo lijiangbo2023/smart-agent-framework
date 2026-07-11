@@ -1,9 +1,9 @@
 package com.smart.agent.model;
 
 /**
- * 对话结果
+ * Chat result.
  *
- * @description 封装智能对话的响应结果，包含消息ID和响应文本内容
+ * @description Encapsulates the response result of an intelligent conversation, containing the message ID and the response text content
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0

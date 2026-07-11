@@ -14,9 +14,9 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * SSE事件推送工具类
+ * SSE event push utility.
  *
- * @description 封装Server-Sent Events事件的构建与发送逻辑，支持从智能体事件中提取文本内容和代理名称，实现流式响应推送
+ * @description Encapsulates the building and sending logic for Server-Sent Events, supporting extraction of text content and agent names from agent events for streaming response delivery
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -30,12 +30,12 @@ public final class SseEventHelper {
     }
 
     /**
-     * 发送SSE事件
+     * Send an SSE event.
      *
-     * @description 将智能体事件转换为SSE数据并推送给客户端，自动对文本内容进行敏感信息脱敏处理
-     * @param emitter SSE发射器
-     * @param event 智能体事件
-     * @param objectMapper JSON序列化器
+     * @description Converts an agent event into SSE data and pushes it to the client, automatically masking sensitive information in text content
+     * @param emitter the SSE emitter
+     * @param event the agent event
+     * @param objectMapper the JSON serializer
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -67,11 +67,11 @@ public final class SseEventHelper {
     }
 
     /**
-     * 提取文本内容
+     * Extract text content.
      *
-     * @description 从智能体事件中提取文本内容，优先获取直接文本，其次从工具结果块中拼接文本
-     * @param event 智能体事件
-     * @return 提取到的文本内容，无文本时返回空字符串
+     * @description Extracts text content from an agent event, preferring direct text, then concatenating text from tool result blocks
+     * @param event the agent event
+     * @return the extracted text content, or an empty string if no text is found
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -99,11 +99,11 @@ public final class SseEventHelper {
     }
 
     /**
-     * 提取智能体名称
+     * Extract agent name.
      *
-     * @description 从事件中提取智能体名称，依次尝试从工具结果元数据、工具名称和消息名称中获取
-     * @param event 智能体事件
-     * @return 智能体名称，无法提取时返回null
+     * @description Extracts the agent name from the event by trying, in order: tool result metadata, tool name, and message name
+     * @param event the agent event
+     * @return the agent name, or null if it cannot be extracted
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -128,17 +128,26 @@ public final class SseEventHelper {
         return null;
     }
 
-    private static String stripSessionIdPrefix(String text) {
+    /**
+     * Strip the session_id prefix from text content.
+     *
+     * @description Removes the "session_id: xxx\n\n" prefix that AgentScope prepends to messages
+     * @param text the text to strip
+     * @return the text without the session_id prefix
+     * @author Jiangbo Li
+     * @date 2026-06-18
+     */
+    public static String stripSessionIdPrefix(String text) {
         if (text == null || text.isEmpty()) {
             return text;
         }
-        return text.replaceAll(SESSION_ID_PREFIX_PATTERN, "");
+        return text.replaceFirst(SESSION_ID_PREFIX_PATTERN, "");
     }
 
     /**
-     * 流式数据块记录
+     * Stream chunk record.
      *
-     * @description 封装SSE推送的单个数据块，包含事件类型、文本内容、是否为最后一块以及智能体名称
+     * @description Encapsulates a single data chunk for SSE delivery, containing the event type, text content, whether it is the last chunk, and the agent name
      * @author Jiangbo Li
      * @date 2026-06-10
      * @version 1.0

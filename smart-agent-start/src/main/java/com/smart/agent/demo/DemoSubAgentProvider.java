@@ -1,6 +1,6 @@
 package com.smart.agent.demo;
 
-import com.smart.agent.agent.provider.AbstractSubAgent;
+import com.smart.agent.agent.provider.SubAgent;
 import com.smart.agent.nacos.AgentPromptManager;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.memory.InMemoryMemory;
@@ -12,39 +12,40 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * 示例子Agent提供者
+ * Demo sub-agent provider
  *
- * @description 演示用的子Agent提供者实现，提供一个通用智能助手Agent，具备查询天气、获取时间、数学计算和互联网搜索等能力
+ * @description A demo sub-agent provider implementation that provides a general-purpose intelligent assistant
+ *              with capabilities such as weather query, time retrieval, math calculation and internet search
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
  */
 @Component
-public class DemoSubAgentProvider implements AbstractSubAgent {
+public class DemoSubAgentProvider implements SubAgent {
 
     private static final String AGENT_NAME = "DemoAgent";
     private static final String TOOL_NAME = "demo_assistant";
-    private static final String DESCRIPTION = "通用智能助手，可以查询天气、获取时间、数学计算、搜索信息、IP查询、文本翻译、短链接生成、Unicode查询、随机笑话等";
+    private static final String DESCRIPTION = "General-purpose intelligent assistant that can query weather, get current time, perform math calculations, search the internet, look up IP addresses, translate text, generate short URLs, query Unicode information, tell random jokes and more";
 
     private static final String PROMPT = """
-            你是一个友好的智能助手，擅长使用工具帮助用户解决问题。
+            You are a friendly intelligent assistant skilled at using tools to help users solve problems.
 
-            你拥有以下工具：
-            - get_current_time: 获取当前日期和时间
-            - calculator: 计算数学表达式
-            - get_weather: 查询城市天气
-            - web_search_summary: 搜索互联网信息
-            - ip_lookup: 查询IP地址归属地
-            - random_joke: 获取随机笑话
-            - translate: 文本翻译（支持中英日韩法德等语言）
-            - url_shorten: 生成短链接
-            - unicode_lookup: 查询字符的Unicode编码信息
+            You have the following tools:
+            - get_current_time: Get the current date and time
+            - calculator: Evaluate math expressions
+            - get_weather: Query city weather
+            - web_search_summary: Search the internet
+            - ip_lookup: Look up IP address geolocation
+            - random_joke: Get a random joke
+            - translate: Translate text (supports Chinese, English, Japanese, Korean, French, German, etc.)
+            - url_shorten: Generate short URLs
+            - unicode_lookup: Query Unicode encoding information for characters
 
-            工作原则：
-            - 当用户的问题可以通过工具获取准确信息时，优先使用工具
-            - 回答要简洁、准确、有帮助
-            - 如果工具调用失败，用你的知识尝试回答
-            - 始终使用中文回答
+            Working principles:
+            - Prefer using tools when they can provide accurate information
+            - Keep responses concise, accurate and helpful
+            - If a tool call fails, try answering from your knowledge
+            - Always respond in Chinese
             """;
 
     private final OpenAIChatModel model;
@@ -58,10 +59,11 @@ public class DemoSubAgentProvider implements AbstractSubAgent {
     }
 
     /**
-     * 创建并提供ReActAgent实例
+     * Create and provide a ReActAgent instance
      *
-     * @description 构建一个配备DemoTools工具集的ReActAgent，使用InMemoryMemory作为记忆存储，最大迭代次数为5
-     * @return 配置完成的ReActAgent实例
+     * @description Builds a ReActAgent equipped with DemoTools toolkit, using InMemoryMemory
+     *              as memory storage with a maximum of 5 iterations
+     * @return fully configured ReActAgent instance
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -81,10 +83,10 @@ public class DemoSubAgentProvider implements AbstractSubAgent {
     }
 
     /**
-     * 获取Agent名称
+     * Get the agent name
      *
-     * @description 返回当前子Agent的唯一标识名称
-     * @return Agent名称
+     * @description Returns the unique identifier name of this sub-agent
+     * @return agent name
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -94,10 +96,10 @@ public class DemoSubAgentProvider implements AbstractSubAgent {
     }
 
     /**
-     * 获取工具名称
+     * Get the tool name
      *
-     * @description 返回该Agent作为工具被Supervisor调用时的工具名称
-     * @return 工具名称
+     * @description Returns the tool name used when this agent is invoked as a tool by the Supervisor
+     * @return tool name
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -107,10 +109,10 @@ public class DemoSubAgentProvider implements AbstractSubAgent {
     }
 
     /**
-     * 获取Agent描述
+     * Get the agent description
      *
-     * @description 返回该Agent的功能描述信息，供Supervisor进行路由决策时参考
-     * @return Agent功能描述
+     * @description Returns the functional description of this agent for the Supervisor's routing decisions
+     * @return agent functional description
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -120,10 +122,10 @@ public class DemoSubAgentProvider implements AbstractSubAgent {
     }
 
     /**
-     * 获取最大消息长度
+     * Get the maximum message length
      *
-     * @description 返回该Agent在记忆窗口内允许保留的最大消息条数
-     * @return 最大消息条数
+     * @description Returns the maximum number of messages this agent is allowed to retain in its memory window
+     * @return maximum number of messages
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -133,10 +135,11 @@ public class DemoSubAgentProvider implements AbstractSubAgent {
     }
 
     /**
-     * 获取时间窗口
+     * Get the time window
      *
-     * @description 返回该Agent记忆保留的时间窗口，超出此时间范围的历史消息将被清除
-     * @return 时间窗口时长
+     * @description Returns the memory retention time window for this agent; historical messages
+     *              beyond this duration will be cleared
+     * @return time window duration
      * @author Jiangbo Li
      * @date 2026-06-10
      */

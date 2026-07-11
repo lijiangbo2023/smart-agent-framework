@@ -1,8 +1,8 @@
 package com.smart.agent.rag;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,9 +16,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 向量嵌入服务
+ * Vector embedding service.
  *
- * @description 基于DashScope API实现文本向量嵌入，支持单条和批量文本的向量化处理
+ * @description Implements text vector embedding based on the DashScope API,
+ *              supporting both single and batch text vectorization.
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
@@ -41,11 +42,12 @@ public class EmbeddingService {
             .build();
 
     /**
-     * 单条文本向量嵌入
+     * Single text vector embedding.
      *
-     * @description 将单条文本转换为向量表示，内部委托给批量嵌入方法处理
-     * @param text 待嵌入的文本内容
-     * @return 文本对应的浮点数向量，嵌入失败时返回空列表
+     * @description Converts a single text to its vector representation,
+     *              internally delegating to the batch embedding method.
+     * @param text the text content to embed
+     * @return float vector for the text; empty list on embedding failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -55,11 +57,12 @@ public class EmbeddingService {
     }
 
     /**
-     * 批量文本向量嵌入
+     * Batch text vector embedding.
      *
-     * @description 通过DashScope Embedding API将多条文本批量转换为向量表示
-     * @param texts 待嵌入的文本列表
-     * @return 每条文本对应的浮点数向量列表，调用失败时返回空列表
+     * @description Converts multiple texts to vector representations in batch
+     *              via the DashScope Embedding API.
+     * @param texts list of texts to embed
+     * @return list of float vectors corresponding to each text; empty list on API failure
      * @author Jiangbo Li
      * @date 2026-06-10
      */
@@ -79,12 +82,26 @@ public class EmbeddingService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             JSONObject responseBody = JSON.parseObject(response.body());
+
+            // Check for API-level errors before accessing data
+            if (responseBody.containsKey("error")) {
+                log.error("Embedding API error: {}", responseBody.get("error"));
+                return List.of();
+            }
+
             JSONArray dataArray = responseBody.getJSONArray("data");
+            if (dataArray == null || dataArray.isEmpty()) {
+                log.warn("Embedding API returned no data, response: {}", response.body());
+                return List.of();
+            }
 
             List<List<Float>> embeddings = new ArrayList<>();
             for (int i = 0; i < dataArray.size(); i++) {
-                JSONArray embedding = dataArray.getJSONObject(i).getJSONArray("embedding");
-                List<Float> vector = new ArrayList<>();
+                JSONObject item = dataArray.getJSONObject(i);
+                if (item == null) continue;
+                JSONArray embedding = item.getJSONArray("embedding");
+                if (embedding == null) continue;
+                List<Float> vector = new ArrayList<>(embedding.size());
                 for (int j = 0; j < embedding.size(); j++) {
                     vector.add(embedding.getFloat(j));
                 }

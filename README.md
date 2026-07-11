@@ -1,121 +1,195 @@
 # Smart Agent Framework
 
-基于 **Spring Boot 3.x + AgentScope + Vue 3** 的通用智能体开发框架。开箱即用的主子 Agent 协调、ReAct 推理、记忆持久化、RAG 知识检索、MCP 工具接入、动态配置等能力。
+[中文文档](README_ZH.md) | **English**
 
-## 功能特性
+A general-purpose AI Agent development framework based on **Spring Boot 3.x + AgentScope + Vue 3**, supporting rapid construction of AI agents with conversation via **HTTP API** or **DingTalk Bot**.
 
-| 功能 | 说明 |
-|------|------|
-| 主子 Agent 协调 | Supervisor 模式，数据驱动自动注册子 Agent |
-| ReAct 推理 | AgentScope ReActAgent，支持 function calling |
-| 记忆持久化 | SlidingWindowMemory + DatabaseSession，跨机器共享 |
-| RAG 知识检索 | Milvus 向量数据库 + DashScope Embedding |
-| MCP Client | 标准 MCP 协议（HTTP/SSE）接入外部工具 |
-| Tool Call | AgentScope 原生工具调用 |
-| 动态配置 | Nacos 热更新 Prompt 和系统配置 |
-| Skill 系统 | Classpath + Git 仓库动态加载 |
-| 钉钉机器人 | 可选，Stream 模式 + AI 流式卡片 |
-| Vue 3 前端 | 历史会话 + 对话详情 + 工具调用/推理过程展示 |
-| Swagger API | springdoc-openapi，开箱即用 |
+## Features
 
-## 技术栈
+| Feature | Description |
+|---------|-------------|
+| Supervisor/SubAgent Orchestration | Supervisor pattern with data-driven auto-registration of sub-agents |
+| ReAct Reasoning | AgentScope ReActAgent with function calling support |
+| Memory Persistence | SlidingWindowMemory + DatabaseSession, shared across instances |
+| Session Concurrency Lock | Serializes requests per session to prevent data overwrites |
+| Automatic Data Cleanup | Scheduled cleanup of sessions and messages with configurable retention |
+| Sensitive Data Masking | Auto-masking of phone numbers and ID numbers across all API outputs |
+| Redis Enhancement | Distributed lock, session cache, token sharing, rate limiting, message dedup (optional) |
+| RAG Knowledge Retrieval | Milvus vector database + DashScope Embedding (optional) |
+| MCP Client | Standard MCP protocol (HTTP/SSE) for external tool integration (optional) |
+| Tool Call | AgentScope native tool calling |
+| Dynamic Configuration | Nacos hot-reload for prompts and system config (optional) |
+| Skill System | Classpath + Git repository dynamic loading |
+| DingTalk Bot | Stream mode + AI streaming cards, single-chat only (optional) |
+| Vue 3 Frontend | Conversation history + chat details + tool call/reasoning display |
+| Swagger API | springdoc-openapi, ready out of the box |
 
-| 组件 | 方案 |
-|------|------|
-| 后端框架 | Spring Boot 3.3.6 + Java 21 |
-| Agent 框架 | AgentScope 1.0.12 |
-| 配置中心 | Nacos 2.4.x |
-| 数据库 | MySQL 8.x + Druid |
-| 向量数据库 | Milvus 2.x（可选） |
-| LLM | DashScope OpenAI 兼容接口 |
-| 前端 | Vue 3 + Element Plus |
-| API 文档 | springdoc-openapi (Swagger UI) |
+## Tech Stack
 
-## 项目结构
+| Component | Solution |
+|-----------|----------|
+| Backend Framework | Spring Boot 3.3.6 + Java 21 |
+| Agent Framework | AgentScope 1.0.12 |
+| Config Center | Nacos 2.4.x (optional) |
+| Database | MySQL 8.x + Druid |
+| Cache | Redis 7.x + Lettuce (optional) |
+| Vector Database | Milvus 2.x (optional) |
+| LLM | DashScope OpenAI-compatible API |
+| Frontend | Vue 3 + Element Plus + DOMPurify |
+| API Documentation | springdoc-openapi (Swagger UI) |
+
+## Project Structure
 
 ```
 smart-agent-framework/
-├── pom.xml                    # 父 POM
-├── start.sh                   # 启动/停止/重启脚本
-├── smart-agent-core/          # 核心模块（Agent、Memory、Session、RAG、MCP、DingTalk...）
-├── smart-agent-start/         # 启动模块（Controller、示例 Agent、配置文件、logback）
-├── smart-agent-ui/            # Vue 3 前端
+├── pom.xml                    # Parent POM
+├── start.sh                   # Start/stop/restart script
+├── smart-agent-core/          # Core module
+│   ├── agent/                 #   Supervisor, SubAgent, Memory, Session, SessionLock
+│   ├── callback/chatbot/      #   DingTalk Stream callback handling
+│   ├── component/             #   AgentChatComponent (chat orchestration)
+│   ├── dingtalk/              #   DingTalk AccessToken, AI cards
+│   ├── mcp/                   #   MCP Client configuration
+│   ├── nacos/                 #   Prompt hot-reload, system config management
+│   ├── persistence/           #   Entity, Mapper
+│   ├── rag/                   #   Embedding, Milvus, RagService
+│   ├── service/               #   Message service, conversation mapping service
+│   └── util/                  #   JsonUtils, SensitiveUtils, SseEventHelper
+├── smart-agent-start/         # Startup module
+│   ├── controller/            #   REST API Controller
+│   ├── demo/                  #   Example SubAgent and tools
+│   └── resources/             #   application.yml, logback-spring.xml
+├── smart-agent-ui/            # Vue 3 frontend
 └── README.md
 ```
 
-## 快速开始
+## Quick Start
 
-### 1. 环境准备
+### Prerequisites
 
-- **JDK 21+**
-- **Maven 3.9+**
-- **MySQL 8.x**
-- **Node.js 18+**（前端）
-- **Nacos 2.x**（可选，不启动也能跑）
-- **Milvus 2.x**（可选，RAG 功能需要）
+Dependencies are divided into "required" and "optional":
 
-### 2. 数据库初始化
+| Type | Component | Purpose | Impact if Missing |
+|------|-----------|---------|-------------------|
+| Required | JDK 21+ | Runtime | Cannot start |
+| Required | Maven 3.9+ | Build tool | Cannot build |
+| Required | MySQL 8.x | Session & message persistence | Cannot start |
+| Required | DashScope API Key | LLM inference | Cannot chat |
+| Optional | Node.js 18+ | Frontend development | No Vue UI, but API still works |
+| Optional | Nacos 2.x | Prompt hot-reload + system config (required for DingTalk) | No hot-reload, DingTalk bot disabled |
+| Optional | Milvus 2.x | RAG knowledge retrieval | RAG auto-disabled, other features work |
+
+> **Minimal setup**: Just JDK 21 + MySQL + DashScope API Key to get conversation working.
+
+### 1. Get a DashScope API Key (Most Critical Step)
+
+1. Visit [Alibaba Cloud DashScope Console](https://dashscope.console.aliyun.com/)
+2. Log in with Alipay/Taobao account and complete verification
+3. Create an API Key in "API-KEY Management" (format: `sk-xxxxxxxxxx`)
+4. **Free credits**: New users receive millions of free tokens — no top-up needed for development with `qwen-plus` and other models
+
+Recommended models:
+
+| Model | Use Case |
+|-------|----------|
+| `qwen-plus` / `qwen3-plus` | Main Agent reasoning (default) |
+| `qwen-turbo` | Sub-agents / fast response |
+| `text-embedding-v2` / `v3` | RAG embedding |
+
+### 2. Database Initialization
 
 ```bash
 mysql -u root -p < smart-agent-core/src/main/resources/schema.sql
 ```
 
-这会创建 `smart_agent` 数据库和以下三张表：
+This creates the `smart_agent` database with three tables:
 
-| 表名 | 用途 |
-|------|------|
-| `agent_session` | Agent 会话记忆存储 |
-| `agent_chat_message` | 用户与 Agent 的对话消息 |
-| `agent_conversation_session_mapper` | 会话与 Session 的映射 |
+| Table | Purpose |
+|-------|---------|
+| `agent_session` | Agent session memory storage |
+| `agent_chat_message` | User-Agent conversation messages |
+| `agent_conversation_session_mapper` | Conversation-to-Session mapping (reserved, not yet active) |
 
-### 3. 获取 DashScope API Key
+### 3. Configure Environment Variables
 
-1. 访问 [阿里云 DashScope](https://dashscope.console.aliyun.com/)
-2. 开通服务并创建 API Key
-3. 推荐模型：`qwen3.6-plus`（默认）、`qwen3.5-plus`（快速）、`qwen3.5-27b`（轻量）
+Copy `.env.example` to `.env` and fill in real values, or `export` them directly.
 
-### 4. 配置环境变量
-
-项目通过环境变量管理敏感配置，参考 `.env.example` 文件：
+Minimal `.env` example:
 
 ```bash
-# 方式一：设置环境变量（推荐）
-export LLM_API_KEY=sk-your-dashscope-api-key
-export DB_HOST=localhost
-export DB_PORT=3306
-export DB_USERNAME=root
-export DB_PASSWORD=your-password
+# ===== LLM (Required) =====
+LLM_API_KEY=sk-your-dashscope-api-key
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_MODEL=qwen-plus
 
-# 方式二：创建本地配置文件（已被 .gitignore 忽略）
-cp .env.example .env
-# 编辑 .env 填入真实值，然后 source .env
+# ===== Database (Required) =====
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=smart_agent
+DB_USERNAME=root
+DB_PASSWORD=your-password
+
+# ===== DingTalk Bot (Optional, default false) =====
+DINGTALK_STREAM_ENABLED=false
+
+# ===== Nacos (Optional) =====
+# NACOS_SERVER_ADDR=127.0.0.1:8848
+# NACOS_NAMESPACE=public
+
+# ===== Milvus (Optional) =====
+# MILVUS_HOST=localhost
+# MILVUS_PORT=19530
+
+# ===== Redis (Optional) =====
+# REDIS_URL=localhost
+# REDIS_PASSWORD=
 ```
 
-也可以直接编辑 `smart-agent-start/src/main/resources/application.yml`，或创建 `application-local.yml` 覆盖默认值。
+Load environment variables:
 
-### 5. 启动后端
+```bash
+source .env
+# Or inject directly in your IDE run configuration
+```
+
+### 4. Start the Backend
 
 ```bash
 cd smart-agent-framework
 mvn clean install -DskipTests
 
-# 方式一：启动脚本（推荐）
-./start.sh                # 前台启动
-./start.sh -d             # 后台启动
-./start.sh -d -p 9090     # 后台 + 自定义端口
-./start.sh -s             # 停止
-./start.sh -r             # 重启
+# Option 1: Start script (recommended)
+./start.sh                # Foreground
+./start.sh -d             # Background (daemon)
+./start.sh -d -p 9090     # Background + custom port
+./start.sh -s             # Stop
+./start.sh -r             # Restart
 
-# 方式二：Maven 直接启动
+# Option 2: Maven directly
 cd smart-agent-start
 mvn spring-boot:run
 ```
 
-启动成功后访问：
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- API 文档: http://localhost:8080/v3/api-docs
+### 5. Verify Startup
 
-### 6. 启动前端
+Several ways to confirm the application is running correctly:
+
+```bash
+# 1. Check process and port
+lsof -i:8080
+
+# 2. Visit Swagger (most intuitive)
+open http://localhost:8080/swagger-ui.html
+
+# 3. Send a test conversation
+curl -X POST http://localhost:8080/api/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"test","sessionId":"s1","message":"hello"}'
+```
+
+A JSON response should be returned, and LLM call logs visible in `~/smart-agent/logs/log_info.log`. If it fails, see the [Troubleshooting](#troubleshooting) section below.
+
+### 6. Start the Frontend (Optional)
 
 ```bash
 cd smart-agent-ui
@@ -123,105 +197,198 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:5173 即可使用对话界面。
+Visit http://localhost:5173 to use the chat interface.
 
-## API 接口
+## API Endpoints
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/agent/chat` | 同步对话 |
-| POST | `/api/agent/chat/stream` | 流式对话（SSE） |
-| GET | `/api/agent/history/{userId}` | 获取用户历史对话列表 |
-| GET | `/api/agent/conversation/{userId}/{sessionId}` | 获取指定会话的对话详情 |
-| POST | `/api/agent/feedback` | 赞踩反馈 |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/agent/chat` | Synchronous chat |
+| POST | `/api/agent/chat/stream` | Streaming chat (SSE) |
+| GET | `/api/agent/history/{userId}?page=1&size=20` | Get user conversation history (paginated, output masked) |
+| GET | `/api/agent/conversation/{userId}/{sessionId}` | Get conversation details (output masked) |
+| POST | `/api/agent/feedback` | Like/dislike feedback |
 
-### 同步对话示例
+> **Note**: All chat endpoints apply sensitive data masking to Agent output (phone numbers and ID numbers auto-masked). Concurrent requests for the same user+session are rejected with "This session is being processed, please try again later."
+
+### Synchronous Chat Example
 
 ```bash
 curl -X POST http://localhost:8080/api/agent/chat \
   -H "Content-Type: application/json" \
-  -d '{"userId": "user001", "sessionId": "test001", "message": "你好"}'
+  -d '{"userId": "user001", "sessionId": "test001", "message": "hello"}'
 ```
 
-### 流式对话示例
+### Streaming Chat Example
 
 ```bash
 curl -N -X POST http://localhost:8080/api/agent/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"userId": "user001", "sessionId": "test001", "message": "你好"}'
+  -d '{"userId": "user001", "sessionId": "test001", "message": "hello"}'
 ```
 
-## MCP 工具接入测试
-
-框架支持通过 MCP 协议（HTTP/SSE 传输）接入外部工具服务器。由于大多数官方 MCP 服务器使用 stdio 传输，需要通过 **supergateway** 桥接为 SSE。
-
-### 快速测试
-
-1. 安装并启动 MCP 桥接服务：
+### Like/Dislike Feedback Example
 
 ```bash
-# 安装 supergateway（stdio → SSE 桥接）
-npm install -g supergateway
-
-# 启动 MCP 测试服务器（包含 echo、add、longRunningOperation 等工具）
-npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-everything" --port 3000
+curl -X POST http://localhost:8080/api/agent/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"messageId": 1, "action": "like", "currentStatus": "none"}'
 ```
 
-2. 在 `application.yml` 中配置 MCP Server：
+`action` only supports `like` and `dislike`. Submitting the same action again cancels the feedback.
+
+## Security & Data Governance
+
+### Sensitive Data Masking
+
+The framework includes `SensitiveUtils` which automatically masks sensitive data in all API outputs:
+
+| Data Type | Masking Rule | Example |
+|-----------|-------------|---------|
+| Phone (11 digits) | Keep first 3 + last 4, mask middle 4 | `13812345678` → `138****5678` |
+| ID Card (18 digits) | Keep first 6 + last 4, mask middle 8 | `110101199001011234` → `110101**********1234` |
+
+Masking coverage: synchronous chat, streaming chat, history list, conversation details.
+
+### Session Concurrency Lock
+
+Only one request per user+session is allowed at a time, preventing concurrent requests from overwriting session data.
+
+- **Single instance**: In-memory lock (`SessionLockService`), auto-released after 10-minute timeout
+- **Multi-instance**: Requires distributed lock (Redis SETNX + TTL or MySQL row lock). Configure `redis.url` to auto-activate Redis-based lock.
+
+Concurrent requests receive an HTTP 500 error with message "This session is being processed, please try again later."
+
+### Automatic Data Cleanup
+
+Built-in scheduled task runs daily at 3:00 AM to clean up expired data:
+
+| Data Type | Default Retention | Config Key |
+|-----------|:---:|------|
+| Agent session memory (`agent_session`) | 7 days | `cleanup.session.retention-days` |
+| Chat messages (`agent_chat_message`) | 90 days | `cleanup.message.retention-days` |
+
+Customize in `application.yml`:
 
 ```yaml
-mcp:
-  server:
-    url: http://localhost:3000/sse
-    name: everything
+cleanup:
+  session:
+    retention-days: 7
+  message:
+    retention-days: 90
 ```
 
-3. 重启应用后，Agent 即可自动使用 MCP 工具。
+## DingTalk Bot Integration
 
-### 推荐的 MCP 服务器
+Develop and debug locally using DingTalk Bot Stream mode.
 
-| MCP 服务器 | 说明 | 启动命令 |
-|------------|------|----------|
-| `@modelcontextprotocol/server-everything` | 测试服务器（echo, add 等） | `npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-everything" --port 3000` |
-| `@modelcontextprotocol/server-fetch` | 网页内容抓取 | `npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-fetch" --port 3001` |
-| `@modelcontextprotocol/server-filesystem` | 文件系统操作 | `npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-filesystem /tmp" --port 3002` |
+### Prerequisites
 
-> **注意**：MCP 功能为可选特性，不配置 MCP Server 时框架仍可正常运行，Agent 只使用内置的 @Tool 工具。
+All of the following are **required**:
 
-## Nacos 配置（可选）
+1. **DingTalk account**: Regular account, no enterprise verification needed
+2. **Nacos config center**: DingTalk sensitive config (AppKey/AppSecret/RobotCode etc.) **must** be managed via Nacos
+3. **AI Interactive Card template** (optional but recommended): For streaming card replies; without it, only plain text replies are available
 
-### 安装启动 Nacos
+### Step 1: Create DingTalk App & Bot
 
-```bash
-# 下载 Nacos
-wget https://github.com/alibaba/nacos/releases/download/2.4.3/nacos-server-2.4.3.zip
-unzip nacos-server-2.4.3.zip
-cd nacos/bin
+1. Log in to [DingTalk Open Platform](https://open.dingtalk.com)
+2. Go to "App Development → Enterprise Internal App → Create App"
+3. Add "Bot" capability to the app
+4. Get **AppKey** and **AppSecret** from "Credentials & Basic Info"
+5. Get **RobotCode** from the "Bot" configuration page
 
-# 单机模式启动
-sh startup.sh -m standalone
-```
+### Step 2: Create AI Card Template (Optional)
 
-访问 http://localhost:8848/nacos （默认账号密码：nacos/nacos）
+For streaming AI card replies (highly recommended for better UX):
 
-### 配置 Prompt 热更新
+1. DingTalk Open Platform → Your App → "Message Push → Interactive Cards"
+2. Click "Create Card Template", select **AI Card** type
+3. Configure card content area (supports Markdown rendering)
+4. Publish template and copy the template ID (used as `aiCardTemplateId` in config)
+5. If personal account hasn't enabled AI Card capability, submit an application
 
-在 Nacos 中创建配置：
+> Without an AI Card template, the bot still works but only sends non-streaming text replies.
 
-| Data ID | Group | 内容 |
-|---------|-------|------|
-| `Supervisor-prompt` | `smart-agent` | Supervisor 的系统 Prompt |
-| `DemoAgent-prompt` | `smart-agent` | Demo 子 Agent 的系统 Prompt |
+### Step 3: Configure Sensitive Info in Nacos
 
-### 配置系统参数
-
-Data ID: `system-config.json`，Group: `smart-agent`：
+Ensure Nacos is running, then create `system-config.json` in Group `smart-agent`:
 
 ```json
 {
-  "permissionUserIds": ["user001", "user002"],
-  "allowTalkUserIds": ["user001", "user002"],
-  "noPermissionText": "您暂无权限使用",
+  "dingtalk": {
+    "appKey": "your-app-key",
+    "appSecret": "your-app-secret",
+    "robotCode": "your-robot-code",
+    "aiCardTemplateId": "your-card-template-id"
+  }
+}
+```
+
+### Step 4: Enable Stream Mode
+
+```bash
+export DINGTALK_STREAM_ENABLED=true
+export NACOS_SERVER_ADDR=127.0.0.1:8848
+```
+
+Or in `application.yml`:
+
+```yaml
+dingtalk:
+  stream:
+    enabled: true
+```
+
+### Step 5: Start and Verify
+
+After starting the application:
+
+- You should see `DingTalk Stream connected` logs in `~/smart-agent/logs/log_info.log`
+- Search for the bot name in DingTalk and start a private chat
+
+### Current Limitations
+
+- **Single-chat only** (private bot messages), group chat not yet implemented
+- AI Cards require personal account capability activation; falls back to text replies when not available
+
+### Debugging Tips
+
+| Check Point | Method |
+|-------------|--------|
+| Stream connected? | Check startup logs for `DingTalk Stream` connection success messages |
+| Config applied? | Visit Nacos console to verify `system-config.json` content |
+| Bot online? | Check online status on DingTalk Open Platform "Bot" page |
+| Messages arriving? | Send a message to the bot and check application logs for callback input |
+
+## Nacos Configuration (Optional)
+
+**Use cases**: Prompt hot-reload, system-level sensitive config (e.g. DingTalk credentials). **Without Nacos**, DingTalk bot is disabled, but HTTP API and Vue frontend are unaffected.
+
+### Install & Start Nacos
+
+```bash
+wget https://github.com/alibaba/nacos/releases/download/2.4.3/nacos-server-2.4.3.zip
+unzip nacos-server-2.4.3.zip
+cd nacos/bin
+sh startup.sh -m standalone
+```
+
+Visit http://localhost:8848/nacos (default credentials: nacos/nacos)
+
+### Configure Prompt Hot-Reload
+
+| Data ID | Group | Content |
+|---------|-------|---------|
+| `Supervisor-prompt` | `smart-agent` | Supervisor system prompt |
+| `DemoAgent-prompt` | `smart-agent` | Demo sub-agent system prompt |
+
+### Configure System Parameters
+
+Data ID: `system-config.json`, Group: `smart-agent`:
+
+```json
+{
   "dingtalk": {
     "appKey": "your-dingtalk-app-key",
     "appSecret": "your-dingtalk-app-secret",
@@ -231,11 +398,165 @@ Data ID: `system-config.json`，Group: `smart-agent`：
 }
 ```
 
-## 扩展指南
+## RAG Knowledge Base (Optional)
 
-### 添加自定义子 Agent
+**Use case**: Let Agent answer questions based on private knowledge. **Without Milvus, the application still runs normally** — RAG is auto-disabled, other features are unaffected.
 
-1. 实现 `AbstractSubAgent` 接口：
+### Start Milvus
+
+```bash
+wget https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh
+bash standalone_embed.sh start
+```
+
+### Create Collection
+
+```
+Collection: knowledge_base
+Fields:
+  - id: VARCHAR(256), primary key
+  - text: VARCHAR(65535)
+  - vector: FLOAT_VECTOR(1024)
+Index: IVF_FLAT on vector field
+```
+
+### Use in Agent
+
+```java
+@Autowired
+private RagService ragService;
+
+// Retrieve knowledge
+String context = ragService.retrieve("user question");
+
+// Index document
+ragService.index("doc-001", "document content...");
+```
+
+## MCP Tool Integration (Optional)
+
+The framework supports external tool servers via MCP protocol (HTTP/SSE transport). Since most official MCP servers use stdio transport, you need **supergateway** to bridge to SSE.
+
+### Quick Test
+
+1. Install and start MCP bridge:
+
+```bash
+npm install -g supergateway
+npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-everything" --port 3000
+```
+
+2. Configure in `application.yml`:
+
+```yaml
+mcp:
+  server:
+    url: http://localhost:3000/sse
+    name: everything
+```
+
+3. Restart the application — Agent will automatically use MCP tools.
+
+### Recommended MCP Servers
+
+| MCP Server | Description | Start Command |
+|------------|-------------|---------------|
+| `@modelcontextprotocol/server-everything` | Test server (echo, add, etc.) | `npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-everything" --port 3000` |
+| `@modelcontextprotocol/server-fetch` | Web content fetching | `npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-fetch" --port 3001` |
+| `@modelcontextprotocol/server-filesystem` | File system operations | `npx -y supergateway --stdio "npx -y @modelcontextprotocol/server-filesystem /tmp" --port 3002` |
+
+> **Note**: MCP is optional. Without an MCP Server, the framework runs normally — Agent only uses built-in @Tool tools.
+
+## Troubleshooting
+
+| Problem | Possible Cause | Solution |
+|---------|---------------|----------|
+| DashScope connection failure / 401 at startup | API Key not configured or invalid | Check `LLM_API_KEY` env var; verify key status in [DashScope Console](https://dashscope.console.aliyun.com/) |
+| Nacos connection failure warning | Nacos not running or wrong address | Ignore if DingTalk/hot-reload not needed; otherwise start Nacos and check `NACOS_SERVER_ADDR` |
+| DingTalk bot not responding | Stream not connected | 1) Confirm `DINGTALK_STREAM_ENABLED=true`; 2) Check `system-config.json` in Nacos; 3) Check Stream connection in startup logs |
+| DingTalk only sends plain text, no streaming cards | `aiCardTemplateId` not configured or account lacks AI Card capability | Create AI Card template on DingTalk Open Platform; submit application if capability not enabled |
+| Milvus connection failure warning | Milvus not running | Ignore if RAG not needed; otherwise start Milvus and check `MILVUS_HOST/MILVUS_PORT` |
+| Database connection failure | MySQL not running or misconfigured | Check `DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD`; confirm `schema.sql` was executed |
+| Swagger not accessible | App not fully started | Check `~/smart-agent/logs/log_info.log`, wait for `Started SmartAgentApplication` log |
+| Port 8080 occupied | Another app using the port | Use `./start.sh -d -p 9090` to switch port |
+| "Session is being processed" response | Concurrent requests for same session | Session lock protection; wait for previous request to complete. If persistent, check for unreleased locks (auto-expire after 10 minutes) |
+| CORS `*` warning in non-local env | `cors.allowed-origins` not configured | Configure `cors.allowed-origins` with specific domains in `application.yml` for production |
+
+## CORS Configuration
+
+Allows all origins by default, **development use only**. Production environments **must** restrict to specific domains in `application.yml`:
+
+```yaml
+cors:
+  allowed-origins: https://your-domain.com,https://admin.your-domain.com
+```
+
+> At startup, the framework checks the current profile: if not `local` and `cors.allowed-origins` is still `*`, a **WARN** log is emitted reminding you to configure specific domains.
+
+## Redis Enhancement (Optional)
+
+Configuring Redis auto-activates the following enhancements. **Without Redis, all features gracefully degrade to in-memory implementations — the application still starts normally.**
+
+### Quick Setup
+
+1. Install Redis 7.x (or 6.x):
+
+```bash
+# macOS
+brew install redis && brew services start redis
+
+# Docker
+docker run -d --name redis -p 6379:6379 redis:7
+```
+
+2. Configure in `.env`:
+
+```bash
+REDIS_URL=localhost
+# REDIS_PASSWORD=your-password   # Uncomment if password-protected
+```
+
+Or in `application.yml`:
+
+```yaml
+redis:
+  url: localhost
+  password: ""
+```
+
+### Activated Features
+
+| Feature | Without Redis | With Redis |
+|---------|:---:|:---:|
+| **Session Lock** | In-memory, single-instance only | SETNX + TTL, multi-instance mutual exclusion |
+| **Session Cache** | MySQL read/write per conversation | Read-Through cache, ~10x latency reduction for active sessions |
+| **DingTalk Token Sharing** | Independent cache per instance, concurrent refresh on expiry | Global shared token + distributed refresh lock |
+| **Rate Limiting** | No limit | Fixed-window counter, default 30 req/min/IP |
+| **Message Dedup** | DingTalk redelivery may cause duplicate replies | SETNX dedup within 5 minutes |
+| **Cleanup Task Lock** | Concurrent DELETE across instances may cause lock contention | Distributed lock ensures single-instance execution |
+
+### Rate Limiting Configuration
+
+```yaml
+ratelimit:
+  requests-per-minute: 30    # Max requests per IP per minute
+```
+
+Rate limiting only applies to `/api/agent/chat` and `/api/agent/chat/stream` endpoints. Exceeding the threshold returns HTTP 429.
+
+### Multi-Instance Deployment
+
+**Strongly recommended** to configure Redis for multi-instance deployments. Without it:
+
+- Session locks cannot coordinate across instances; concurrent requests may overwrite session data
+- Scheduled cleanup tasks run on every instance simultaneously, competing for MySQL row locks
+- All instances refresh DingTalk tokens simultaneously on expiry, potentially triggering rate limits
+
+## Extension Guide
+
+### Add a Custom Sub-Agent
+
+1. Implement the `AbstractSubAgent` interface:
 
 ```java
 @Component
@@ -250,10 +571,10 @@ public class MySubAgentProvider implements AbstractSubAgent {
     @Override
     public ReActAgent provide() {
         Toolkit toolkit = new Toolkit();
-        // 注册自定义工具...
+        // Register custom tools...
         return ReActAgent.builder()
                 .name(getAgentName())
-                .sysPrompt("你的 Agent Prompt")
+                .sysPrompt("Your Agent Prompt")
                 .model(model)
                 .memory(new InMemoryMemory())
                 .toolkit(toolkit)
@@ -267,7 +588,7 @@ public class MySubAgentProvider implements AbstractSubAgent {
     public String getToolName() { return "my_tool"; }
 
     @Override
-    public String getDescription() { return "描述你的 Agent 能力"; }
+    public String getDescription() { return "Describe your Agent's capabilities"; }
 
     @Override
     public Integer getMaxMessageLength() { return 20; }
@@ -277,65 +598,31 @@ public class MySubAgentProvider implements AbstractSubAgent {
 }
 ```
 
-加上 `@Component` 注解即可自动注册到 Supervisor，无需修改任何其他代码。
+Add `@Component` and it auto-registers with the Supervisor — no other code changes needed.
 
-### 添加自定义工具
+### Add Custom Tools
 
-使用 AgentScope 的 `@Tool` 注解：
+Use AgentScope's `@Tool` annotation:
 
 ```java
 public class MyTool {
-    @Tool(name = "search", description = "搜索信息")
-    public String search(@ToolParam(name = "query", description = "搜索关键词") String query) {
-        return "搜索结果: " + query;
+    @Tool(name = "search", description = "Search for information")
+    public String search(@ToolParam(name = "query", description = "Search keywords") String query) {
+        return "Search results: " + query;
     }
 }
 ```
 
-在 Agent 的 `provide()` 方法中注册：
+Register in the Agent's `provide()` method:
 
 ```java
 Toolkit toolkit = new Toolkit();
 toolkit.registration().tool(new MyTool()).apply();
 ```
 
-### 使用 RAG 知识检索
+### Integrate MCP External Tools
 
-1. 启动 Milvus（推荐 Docker）：
-
-```bash
-# 使用 Milvus Standalone
-wget https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh
-bash standalone_embed.sh start
-```
-
-2. 创建 Collection（使用 Milvus Attu UI 或 SDK）：
-
-```
-Collection: knowledge_base
-Fields:
-  - id: VARCHAR(256), primary key
-  - text: VARCHAR(65535)
-  - vector: FLOAT_VECTOR(1024)
-Index: IVF_FLAT on vector field
-```
-
-3. 在你的 Agent 中注入 `RagService`：
-
-```java
-@Autowired
-private RagService ragService;
-
-// 检索知识
-String context = ragService.retrieve("用户的问题");
-
-// 索引文档
-ragService.index("doc-001", "文档内容...");
-```
-
-### 接入 MCP 外部工具
-
-在 `application.yml` 中配置 MCP Server 地址：
+Configure MCP Server address in `application.yml`:
 
 ```yaml
 mcp:
@@ -344,7 +631,7 @@ mcp:
     name: my-mcp-server
 ```
 
-在 Agent 中注入 `McpClientWrapper` 并注册到 Toolkit：
+Inject `McpClientWrapper` in the Agent and register to Toolkit:
 
 ```java
 @Autowired
@@ -353,29 +640,29 @@ private io.agentscope.core.tool.mcp.McpClientWrapper mcpClient;
 toolkit.registration().mcpClient(mcpClient).apply();
 ```
 
-### 使用 Skill 系统
+### Use the Skill System
 
-**Classpath Skill**：在 `src/main/resources/skills/` 下创建 Skill 目录：
+**Classpath Skill**: Create a Skill directory under `src/main/resources/skills/`:
 
 ```
 skills/
 └── my-skill/
-    ├── SKILL.md          # 必须，含 YAML frontmatter
-    └── references/       # 可选资源文件
+    ├── SKILL.md          # Required, with YAML frontmatter
+    └── references/       # Optional resource files
 ```
 
-`SKILL.md` 格式：
+`SKILL.md` format:
 
 ```markdown
 ---
 name: my-skill
-description: 技能描述
+description: Skill description
 ---
 
-技能内容...
+Skill content...
 ```
 
-**Git Skill**：配置 Git 仓库地址后，使用 `GitSkillLoader`：
+**Git Skill**: After configuring a Git repository, use `GitSkillLoader`:
 
 ```java
 @Autowired
@@ -384,59 +671,52 @@ private GitSkillLoader gitSkillLoader;
 SkillBox skillBox = gitSkillLoader.loadSkillBox("MyAgent", toolkit);
 ```
 
-## 日志配置
+## Logging
 
-### 日志目录
+### Log Directory
 
-默认日志路径：`~/smart-agent/logs/`
+Default log path: `~/smart-agent/logs/`
 
 ```
 ~/smart-agent/logs/
-├── log_info.log          # 主日志（INFO+）
-├── error.log             # 错误日志（WARN+）
-├── access.log            # HTTP 请求访问日志
-├── startup.log           # 后台启动输出
-├── info/                 # 历史 info 日志（按日期滚动）
-├── error/                # 历史 error 日志
-└── access/               # 历史 access 日志
+├── log_info.log          # Main log (INFO+)
+├── error.log             # Error log (WARN+)
+├── access.log            # HTTP request access log
+├── startup.log           # Background startup output
+├── info/                 # Historical info logs (date-based rolling)
+├── error/                # Historical error logs
+└── access/               # Historical access logs
 ```
 
-### 日志格式
+### Log Format
 
-- **应用日志**：`时间 [traceId] [线程] 级别 类名 - 消息`
-- **错误日志**：`时间 [traceId] [线程] 级别 [类.方法:行号] - 消息`
-- **访问日志**：`METHOD URI STATUS 耗时ms traceId`
+- **Application log**: `timestamp [traceId] [thread] LEVEL className - message`
+- **Error log**: `timestamp [traceId] [thread] LEVEL [class.method:line] - message`
+- **Access log**: `METHOD URI STATUS elapsed_ms traceId`
 
-### 请求追踪
+### Request Tracing
 
-每个 HTTP 请求自动生成 `traceId` 放入 MDC，日志中可串联同一请求的完整链路。支持通过 `X-Trace-Id` 请求头传入外部 traceId。
+Each HTTP request auto-generates a `traceId` in MDC for full-chain correlation. Supports external traceId via `X-Trace-Id` request header.
 
-### 滚动策略
+### Rolling Policy
 
-| 参数 | 值 |
-|------|------|
-| 单文件大小上限 | 50MB |
-| 历史保留天数 | 7 天 |
-| 总大小上限 | 20GB |
+| Parameter | Value |
+|-----------|-------|
+| Max file size | 50MB |
+| History retention | 7 days |
+| Total size cap | 20GB |
 
-### 启动脚本
+### Startup Script
 
 ```bash
-./start.sh              # 前台启动
-./start.sh -d           # 后台启动 (daemon)
-./start.sh -p 9090      # 自定义端口
-./start.sh -e prod      # 指定 Spring profile
-./start.sh -s           # 停止后台进程
-./start.sh -r           # 重启
-./start.sh -h           # 查看帮助
+./start.sh              # Foreground start
+./start.sh -d           # Background (daemon)
+./start.sh -p 9090      # Custom port
+./start.sh -e prod      # Spring profile
+./start.sh -s           # Stop background process
+./start.sh -r           # Restart
+./start.sh -h           # Show help
 ```
-
-## 钉钉机器人接入（可选）
-
-1. 在[钉钉开放平台](https://open-dev.dingtalk.com/)创建企业内部应用
-2. 启用机器人功能，选择 Stream 模式
-3. 在 Nacos `system-config.json` 中配置 appKey、appSecret、robotCode
-4. 如需 AI 流式卡片，需创建卡片模板并配置 aiCardTemplateId
 
 ## License
 

@@ -3,9 +3,9 @@ package com.smart.agent.constant.enums;
 import lombok.Getter;
 
 /**
- * 消息渠道枚举
+ * Message channel enum.
  *
- * @description 定义消息的来源渠道，包括钉钉机器人和HTTP接口
+ * @description Defines the source channels of messages, including DingTalk bot and HTTP API
  * @author Jiangbo Li
  * @date 2026-06-10
  * @version 1.0
