@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jdk-alpine
 
 LABEL maintainer="Jiangbo Li"
 LABEL description="Smart Agent Framework"

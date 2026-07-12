@@ -276,6 +276,20 @@ public class AgentChatMessageService {
      * @author Jiangbo Li
      * @date 2026-06-16
      */
+    /**
+     * Delete all messages under a given user + session.
+     *
+     * @param userId user ID
+     * @param sessionId session ID
+     * @return number of deleted records
+     */
+    public int deleteBySessionId(String userId, String sessionId) {
+        LambdaQueryWrapper<AgentChatMessageEntity> wrapper = new LambdaQueryWrapper<AgentChatMessageEntity>()
+                .eq(AgentChatMessageEntity::getUserId, userId)
+                .eq(AgentChatMessageEntity::getSessionId, sessionId);
+        return agentChatMessageMapper.delete(wrapper);
+    }
+
     public int cleanupExpiredMessages(Date cutoffDate, int limit) {
         try {
             LambdaQueryWrapper<AgentChatMessageEntity> wrapper = new LambdaQueryWrapper<AgentChatMessageEntity>()

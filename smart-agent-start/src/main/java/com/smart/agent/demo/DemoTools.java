@@ -1,5 +1,6 @@
 package com.smart.agent.demo;
 
+import com.smart.agent.rag.RagService;
 import io.agentscope.core.tool.Tool;
 import io.agentscope.core.tool.ToolParam;
 
@@ -14,19 +15,23 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Demo toolset
+ * Demo toolset with RAG support.
  *
- * @description Provides sample tool methods callable by the Agent, including current time retrieval,
- *              math expression evaluation, city weather query and internet search
  * @author Jiangbo Li
  * @date 2026-06-10
- * @version 1.0
+ * @version 2.0
  */
 public class DemoTools {
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
+
+    private final RagService ragService;
+
+    public DemoTools(RagService ragService) {
+        this.ragService = ragService;
+    }
 
     /**
      * Get current time
@@ -272,6 +277,27 @@ public class DemoTools {
      * @author Jiangbo Li
      * @date 2026-06-10
      */
+    /**
+     * RAG knowledge base search
+     *
+     * @description Search the knowledge base using RAG (Retrieval-Augmented Generation) for semantically relevant documents
+     * @param query search query for the knowledge base
+     * @return relevant document content from the knowledge base
+     */
+    @Tool(name = "knowledge_search", description = "Search the knowledge base for relevant documents using semantic retrieval. Use this when you need to find information from the organization's knowledge base.")
+    public String knowledgeSearch(
+            @ToolParam(name = "query", description = "Search query for semantic retrieval") String query) {
+        try {
+            String result = ragService.retrieve(query, 5);
+            if (result == null || result.isEmpty()) {
+                return "Knowledge base returned no results for: " + query;
+            }
+            return "Knowledge base results:\n" + result;
+        } catch (Exception e) {
+            return "Knowledge search failed: " + e.getMessage();
+        }
+    }
+
     @Tool(name = "unicode_lookup", description = "Query Unicode encoding information for a character")
     public String unicodeLookup(
             @ToolParam(name = "character", description = "Character to look up, e.g. 'A' or any Unicode character") String character) {

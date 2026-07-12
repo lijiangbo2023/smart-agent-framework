@@ -2,6 +2,7 @@ package com.smart.agent.demo;
 
 import com.smart.agent.agent.provider.SubAgent;
 import com.smart.agent.nacos.AgentPromptManager;
+import com.smart.agent.rag.RagService;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.memory.InMemoryMemory;
 import io.agentscope.core.model.OpenAIChatModel;
@@ -50,11 +51,14 @@ public class DemoSubAgentProvider implements SubAgent {
 
     private final OpenAIChatModel model;
     private final AgentPromptManager agentPromptManager;
+    private final RagService ragService;
 
     public DemoSubAgentProvider(@Qualifier("subDefaultModel") OpenAIChatModel model,
-                                 AgentPromptManager agentPromptManager) {
+                                 AgentPromptManager agentPromptManager,
+                                 RagService ragService) {
         this.model = model;
         this.agentPromptManager = agentPromptManager;
+        this.ragService = ragService;
         this.agentPromptManager.register(AGENT_NAME, PROMPT);
     }
 
@@ -70,7 +74,7 @@ public class DemoSubAgentProvider implements SubAgent {
     @Override
     public ReActAgent provide() {
         Toolkit toolkit = new Toolkit();
-        toolkit.registration().tool(new DemoTools()).apply();
+        toolkit.registration().tool(new DemoTools(ragService)).apply();
 
         return ReActAgent.builder()
                 .name(AGENT_NAME)

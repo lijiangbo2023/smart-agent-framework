@@ -191,6 +191,21 @@ public class AgentController {
     }
 
     /**
+     * Delete all messages under a session.
+     */
+    @DeleteMapping("/conversation/{userId}/{sessionId}")
+    @Operation(summary = "Delete conversation")
+    public ServiceResponse<String> deleteConversation(
+            HttpServletRequest httpRequest,
+            @PathVariable String userId,
+            @PathVariable String sessionId) {
+        validateUserIdOwnership(httpRequest, userId);
+        int deleted = agentChatMessageService.deleteBySessionId(userId, sessionId);
+        log.info("Deleted {} messages for userId={}, sessionId={}", deleted, userId, sessionId);
+        return ServiceResponse.success("deleted " + deleted + " messages");
+    }
+
+    /**
      * Feedback request model
      *
      * @description Encapsulates the parameters for a like/dislike feedback request

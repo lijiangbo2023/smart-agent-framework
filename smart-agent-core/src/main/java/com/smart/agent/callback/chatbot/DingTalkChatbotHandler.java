@@ -143,15 +143,27 @@ public class DingTalkChatbotHandler implements OpenDingTalkCallbackListener<Chat
     }
 
     private void dispatchChat(String userId, String conversationId, String conversationType, String userText) {
+        // 1. Create card immediately — user sees "处理中..." right away
+        CardDeliveryResult delivery = aiCardService.createAndDeliver(
+                conversationType, conversationId, userId, Map.of());
+        if (delivery == null) {
+            log.warn("dispatchChat: createAndDeliver returned null, userId={}", userId);
+            sendErrorCard(userId, conversationId, conversationType, "卡片创建失败");
+            return;
+        }
+        String outTrackId = delivery.outTrackId();
+        // Immediately push "thinking" frame — same as reference project pattern
+        aiCardService.streamingUpdate(outTrackId, "🤔 正在思考...", false);
+        log.info("Card created, userId={}, outTrackId={}", userId, outTrackId);
+
         try {
-            // Use conversationId as sessionId to ensure multi-turn context continuity within the same chat
             String sessionId = conversationId;
             ChatContext context = new ChatContext(sessionId, userId, userText,
                     MessageChannel.DINGTALK, DEFAULT_BUSINESS_NAME,
                     conversationId, conversationType);
             ChatStreamResult streamResult = supervisorAgentService.chatStream(context);
 
-            // Map event stream to a "latest accumulated text" stream; latestTextRef is updated in doOnNext by AgentChatComponent
+            // Map events to latest accumulated text
             Flux<String> textStream = streamResult.eventStream()
                     .map(event -> {
                         String t = streamResult.latestTextRef().get();
@@ -160,10 +172,10 @@ public class DingTalkChatbotHandler implements OpenDingTalkCallbackListener<Chat
                     .filter(s -> !s.isEmpty())
                     .distinctUntilChanged();
 
-            replyAdapter.sendStreamReply(userId, conversationId, conversationType, textStream);
+            replyAdapter.streamIntoCard(outTrackId, textStream, streamResult.latestTextRef());
         } catch (Exception e) {
             log.error("dispatchChat error, userId={}, conversationId={}", userId, conversationId, e);
-            sendErrorCard(userId, conversationId, conversationType, e.getMessage());
+            aiCardService.streamingUpdate(outTrackId, "处理失败，请稍后重试", true);
         }
     }
 

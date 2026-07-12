@@ -109,14 +109,22 @@ public class DingTalkAiCardService {
             body.put("openSpaceId", "dtv1.card//IM_ROBOT." + senderUserId);
             body.put("imRobotOpenSpaceModel", Map.of("supportForward", true));
             body.put("imRobotOpenDeliverModel", Map.of("robotCode", robotCode, "spaceType", "IM_ROBOT"));
+            body.put("openSpaceDelivery", Map.of("spaceType", "IM_ROBOT"));
         } else {
             body.put("openSpaceId", "dtv1.card//IM_GROUP." + openConversationId);
             body.put("imGroupOpenSpaceModel", Map.of("supportForward", true));
             body.put("imGroupOpenDeliverModel", Map.of("robotCode", robotCode));
+            body.put("openSpaceDelivery", Map.of("spaceType", "IM_GROUP"));
         }
 
         try {
             HttpResponse<String> resp = post(CREATE_AND_DELIVER_URL, body);
+            // Retry once on 5xx
+            if (resp.statusCode() >= 500 && resp.statusCode() < 600) {
+                log.warn("createAndDeliver 5xx, retrying once. status={}, body={}", resp.statusCode(), resp.body());
+                Thread.sleep(500);
+                resp = post(CREATE_AND_DELIVER_URL, body);
+            }
             if (resp.statusCode() >= 300) {
                 log.warn("createAndDeliver non-2xx, status={}, body={}", resp.statusCode(), resp.body());
                 return null;

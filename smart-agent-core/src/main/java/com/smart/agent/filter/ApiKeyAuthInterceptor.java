@@ -1,6 +1,8 @@
 package com.smart.agent.filter;
 
+import com.smart.agent.util.JwtUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -12,18 +14,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
- * API key authentication interceptor.
+ * Authentication interceptor supporting both API Key and JWT Bearer Token.
  *
- * @description Validates the {@code X-Api-Key} header against the configured API key.
- *              When auth is disabled (default for development), all requests are allowed.
- *              Enable via {@code auth.api-key.enabled=true} and set {@code auth.api-key.value}.
- *              Uses constant-time comparison to prevent timing attacks.
- *              Also extracts the {@code X-User-Id} header and stores it as a request attribute
- *              ({@code authenticatedUserId}) for downstream ownership validation. When auth is
- *              enabled, the header is required; when disabled, it is optional.
+ * @description Validates requests via X-Api-Key header or Authorization Bearer token.
+ *              Extracts userId from JWT or X-User-Id header for downstream ownership validation.
  * @author Jiangbo Li
  * @date 2026-06-18
- * @version 1.0
+ * @version 2.0
  */
 @Slf4j
 @Component
@@ -31,6 +28,7 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
 
     private static final String API_KEY_HEADER = "X-Api-Key";
     private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String AUTH_HEADER = "Authorization";
     public static final String AUTHENTICATED_USER_ID_ATTR = "authenticatedUserId";
 
     @Value("${auth.api-key.enabled:false}")
@@ -39,21 +37,34 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
     @Value("${auth.api-key.value:}")
     private String apiKey;
 
+    @Autowired(required = false)
+    private JwtUtils jwtUtils;
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
-        // Extract X-User-Id header and store as request attribute for downstream validation
+        // Try JWT Bearer token first
+        String authHeader = request.getHeader(AUTH_HEADER);
+        if (authHeader != null && authHeader.startsWith("Bearer ") && jwtUtils != null) {
+            String token = authHeader.substring(7);
+            if (jwtUtils.validateToken(token)) {
+                String userId = jwtUtils.getUserIdFromToken(token);
+                request.setAttribute(AUTHENTICATED_USER_ID_ATTR, userId);
+                return true;
+            }
+        }
+
+        // Try X-User-Id header (simple mode, for dev or when auth is disabled)
         String userId = request.getHeader(USER_ID_HEADER);
 
         if (!enabled) {
-            // Auth disabled: userId is optional, store if present
             if (userId != null && !userId.isEmpty()) {
                 request.setAttribute(AUTHENTICATED_USER_ID_ATTR, userId);
             }
             return true;
         }
 
-        // Auth enabled: validate API key first
+        // Auth enabled: validate API key
         if (apiKey == null || apiKey.isEmpty()) {
             log.error("Auth enabled but auth.api-key.value is not set, rejecting request");
             writeUnauthorizedResponse(response, "API key not configured");
@@ -62,13 +73,11 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
 
         String providedKey = request.getHeader(API_KEY_HEADER);
         if (!constantTimeEquals(apiKey, providedKey)) {
-            log.warn("Unauthorized API access attempt, uri={}, remoteAddr={}",
-                    request.getRequestURI(), request.getRemoteAddr());
+            log.warn("Unauthorized API access attempt, uri={}", request.getRequestURI());
             writeUnauthorizedResponse(response, "Invalid or missing API key");
             return false;
         }
 
-        // Auth enabled: X-User-Id is required
         if (userId == null || userId.isEmpty()) {
             log.warn("Missing X-User-Id header, uri={}", request.getRequestURI());
             writeUnauthorizedResponse(response, "Missing X-User-Id header");
@@ -84,9 +93,6 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
         response.getWriter().write("{\"code\":401,\"message\":\"" + message + "\",\"data\":null}");
     }
 
-    /**
-     * Constant-time string comparison to prevent timing attacks.
-     */
     private boolean constantTimeEquals(String a, String b) {
         if (a == null || b == null) {
             return false;

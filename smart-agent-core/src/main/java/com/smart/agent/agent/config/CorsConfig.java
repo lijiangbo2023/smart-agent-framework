@@ -2,7 +2,6 @@ package com.smart.agent.agent.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -23,7 +22,7 @@ import java.util.Arrays;
  */
 @Slf4j
 @Configuration
-public class CorsConfig {
+public class CorsConfig implements WebMvcConfigurer {
 
     @Value("${cors.allowed-origins:}")
     private String allowedOrigins;
@@ -59,33 +58,28 @@ public class CorsConfig {
         }
     }
 
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                boolean isLocal = Arrays.asList(springEnvironment.getActiveProfiles()).contains("local");
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        boolean isLocal = Arrays.asList(springEnvironment.getActiveProfiles()).contains("local");
 
-                if (allowedOrigins == null || allowedOrigins.isBlank()) {
-                    if (isLocal) {
-                        registry.addMapping("/api/**")
-                                .allowedOriginPatterns("*")
-                                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                                .allowedHeaders("*")
-                                .allowCredentials(false)
-                                .maxAge(3600);
-                    }
-                    // Non-local with no config: no CORS mappings → same-origin only
-                    return;
-                }
-
+        if (allowedOrigins == null || allowedOrigins.isBlank()) {
+            if (isLocal) {
                 registry.addMapping("/api/**")
-                        .allowedOriginPatterns(allowedOrigins.split(","))
+                        .allowedOriginPatterns("*")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
-                        .allowCredentials(!allowedOrigins.contains("*"))
+                        .allowCredentials(false)
                         .maxAge(3600);
             }
-        };
+            // Non-local with no config: no CORS mappings → same-origin only
+            return;
+        }
+
+        registry.addMapping("/api/**")
+                .allowedOriginPatterns(allowedOrigins.split(","))
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(!allowedOrigins.contains("*"))
+                .maxAge(3600);
     }
 }

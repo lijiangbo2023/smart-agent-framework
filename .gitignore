@@ -35,6 +35,9 @@ Desktop.ini
 .env.*.local
 application-local.yml
 application-local.properties
+dingtalk-config.json
+push-config.sh
+update-dingtalk-config.sh
 
 # Logs
 logs/

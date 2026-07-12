@@ -30,6 +30,7 @@ import io.agentscope.core.model.OpenAIChatModel;
 import io.agentscope.core.hook.Hook;
 import io.agentscope.core.hook.HookEvent;
 import io.agentscope.core.hook.PostActingEvent;
+import io.agentscope.core.hook.PreActingEvent;
 import io.agentscope.core.session.SessionManager;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.subagent.SubAgentConfig;
@@ -77,7 +78,7 @@ public class SupervisorAgentService {
 
             工作原则：
             - 工具描述匹配用户意图就调；能直接回答的就直接回答，不要为了"看起来像 agent"而强行调工具。
-            - 调用子 Agent 时，message 必须原样转发用户输入，禁止自行添加、修改、补充任何信息。
+            - 调用子 Agent 时，必须填写 message 参数，值为用户原始输入，一字不改，禁止自行添加、修改、补充任何信息。
             - 子 Agent 返回的内容就是最终答案，不要复述、缩写、改写。
             - 当用户发送"保存"、"是"、"确认"等简短确认消息时，如果上一轮调用了某个子 Agent，必须再次调用同一个子 Agent 并原样转发用户消息。
 
@@ -239,6 +240,33 @@ public class SupervisorAgentService {
         @Override
         @SuppressWarnings("unchecked")
         public <T extends HookEvent> Mono<T> onEvent(T event) {
+            // PRE_ACTING: ensure sub-agent tools always have a "message" parameter
+            if (event instanceof PreActingEvent preActing) {
+                String toolName = preActing.getToolUse().getName();
+                if (toolName != null && subAgentToolNames.contains(toolName)) {
+                    ToolUseBlock toolUse = preActing.getToolUse();
+                    Map<String, Object> input = toolUse.getInput();
+                    if (input == null || !input.containsKey("message") || input.get("message") == null) {
+                        String lastUserMessage = getLastUserMessage(preActing.getMemory());
+                        if (lastUserMessage != null) {
+                            if (input == null) {
+                                input = new java.util.HashMap<>();
+                            } else {
+                                input = new java.util.HashMap<>(input);
+                            }
+                            input.put("message", lastUserMessage);
+                            preActing.setToolUse(ToolUseBlock.builder()
+                                    .id(toolUse.getId())
+                                    .name(toolUse.getName())
+                                    .input(input)
+                                    .build());
+                            log.debug("Auto-injected message parameter for tool: {}", toolName);
+                        }
+                    }
+                }
+            }
+
+            // POST_ACTING: stop supervisor agent after sub-agent tool completes
             if (event instanceof PostActingEvent postActing) {
                 String toolName = postActing.getToolUse().getName();
                 if (toolName != null && subAgentToolNames.contains(toolName)) {
@@ -246,6 +274,17 @@ public class SupervisorAgentService {
                 }
             }
             return Mono.just(event);
+        }
+
+        private String getLastUserMessage(io.agentscope.core.memory.Memory memory) {
+            if (memory == null) return null;
+            List<Msg> messages = memory.getMessages();
+            for (int i = messages.size() - 1; i >= 0; i--) {
+                if (messages.get(i).getRole() == MsgRole.USER) {
+                    return messages.get(i).getTextContent();
+                }
+            }
+            return null;
         }
     }
 
@@ -321,17 +360,46 @@ public class SupervisorAgentService {
 
     private Function<Event, String> buildStreamTextExtractor(ReActAgent supervisor, String sessionId) {
         Map<String, Long> subAgentStartTimes = new ConcurrentHashMap<>();
+        final StringBuilder accumulated = new StringBuilder();
         return event -> {
             Msg msg = event.getMessage();
             if (msg != null) {
                 trackSubAgentTiming(msg, sessionId, subAgentStartTimes);
             }
-            if (event.getType() != EventType.AGENT_RESULT) {
-                return null;
-            }
             if (msg == null) {
-                return null;
+                return accumulated.length() > 0 ? accumulated.toString() : null;
             }
+
+            // REASONING: pass through real thinking text so card shows streaming progress
+            if (event.getType() == EventType.REASONING || event.getType().name().equals("REASONING")) {
+                String text = extractDirectText(msg);
+                if (text != null && !text.isEmpty()) {
+                    accumulated.append(text);
+                    return accumulated.toString();
+                }
+                return accumulated.length() > 0 ? accumulated.toString() : null;
+            }
+
+            // TOOL_RESULT: check for sub-agent output
+            for (ContentBlock block : msg.getContent()) {
+                if (block instanceof ToolResultBlock toolResult) {
+                    String text = extractToolResultText(toolResult);
+                    if (text != null && !text.isEmpty()) {
+                        // Skip nested JSON (sub-agent reasoning) — only show final text
+                        if (!text.startsWith("{\"type\":")) {
+                            accumulated.setLength(0);
+                            accumulated.append(stripSessionIdPrefix(text));
+                            return accumulated.toString();
+                        }
+                    }
+                }
+            }
+
+            if (event.getType() != EventType.AGENT_RESULT) {
+                return accumulated.length() > 0 ? accumulated.toString() : null;
+            }
+
+            // AGENT_RESULT: return final answer
             String bypassText = tryBypassSingleSubagentResult(supervisor);
             if (bypassText != null) {
                 return bypassText;
@@ -348,9 +416,14 @@ public class SupervisorAgentService {
                 }
             }
             if (isFromSubAgent(msg)) {
-                return null;
+                return accumulated.length() > 0 ? accumulated.toString() : null;
             }
-            return extractDirectText(msg);
+            String direct = extractDirectText(msg);
+            if (direct != null && !direct.isEmpty()) {
+                accumulated.setLength(0);
+                return direct;
+            }
+            return accumulated.length() > 0 ? accumulated.toString() : null;
         };
     }
 

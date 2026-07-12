@@ -58,7 +58,12 @@ public class GitSkillLoader {
     @Value("${skill.git.local-cache-dir:/tmp/smart-agent-skills}")
     private String localCacheDir;
 
+    /** Local directory mode: when set, read skills from this directory without Git operations. */
+    @Value("${skill.local.dir:}")
+    private String localDir;
+
     private Path repoRoot;
+    private boolean localMode;
 
     private static final long FETCH_DEDUP_WINDOW_MS = 3000L;
     private volatile long lastFetchTimeMs;
@@ -76,11 +81,22 @@ public class GitSkillLoader {
      */
     @PostConstruct
     public void init() {
+        // Local directory mode: read skills directly from filesystem (for local development)
+        if (localDir != null && !localDir.isBlank()) {
+            this.repoRoot = Paths.get(localDir);
+            this.localMode = true;
+            skillCache.clear();
+            agentSkillCache.clear();
+            log.info("GitSkillLoader initialized in LOCAL mode, dir={}", repoRoot);
+            return;
+        }
+        // Git mode: clone from remote repository
         if (repoUrl == null || repoUrl.isBlank()) {
             log.info("GitSkillLoader disabled: skill.git.repo-url not configured");
             return;
         }
         this.repoRoot = Paths.get(localCacheDir);
+        this.localMode = false;
         try {
             ensureCloned();
             log.info("GitSkillLoader initialized, repo={}, branch={}, local={}", repoUrl, branch, repoRoot);
@@ -311,6 +327,7 @@ public class GitSkillLoader {
     }
 
     private synchronized void ensureCloned() throws Exception {
+        if (localMode) return;
         if (repoRoot == null) return;
         if (Files.isDirectory(repoRoot.resolve(".git"))) {
             return;
@@ -330,6 +347,7 @@ public class GitSkillLoader {
     }
 
     private synchronized void syncIfRemoteChanged() {
+        if (localMode) return;
         long now = System.currentTimeMillis();
         if (now - lastFetchTimeMs < FETCH_DEDUP_WINDOW_MS) {
             return;

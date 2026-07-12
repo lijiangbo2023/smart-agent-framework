@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: smart-agent
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -64,13 +67,15 @@ rag:
 #     name: ${MCP_SERVER_NAME:my-mcp-server}
 
 # Skill Git repository (optional)
-# skill:
-#   git:
-#     repo-url: ${SKILL_GIT_REPO_URL:}
-#     token: ${SKILL_GIT_TOKEN:}
-#     username: oauth2
-#     branch: main
-#     local-cache-dir: /tmp/smart-agent-skills
+skill:
+  git:
+    repo-url: ${SKILL_GIT_REPO_URL:}
+    token: ${SKILL_GIT_TOKEN:}
+    username: ${SKILL_GIT_USERNAME:oauth2}
+    branch: ${SKILL_GIT_BRANCH:main}
+    local-cache-dir: ${SKILL_GIT_LOCAL_DIR:/tmp/smart-agent-skills}
+  local:
+    dir: ${SKILL_LOCAL_DIR:}
 
 # DingTalk Stream
 dingtalk:

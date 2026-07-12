@@ -1,0 +1,30 @@
+# ============================================================
+# 日常开发环境 (dev)
+# 读取远程 Git 技能仓库，共享数据库
+# ============================================================
+spring:
+  flyway:
+    enabled: true
+
+cors:
+  allowed-origins: "*"
+
+auth:
+  api-key:
+    enabled: false
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+# 日常环境从 Git 拉取技能
+skill:
+  git:
+    local-cache-dir: /tmp/smart-agent-skills-dev
+
+logging:
+  level:
+    com.smart.agent: DEBUG
+    io.agentscope: INFO

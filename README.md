@@ -1,8 +1,15 @@
 # Smart Agent Framework
 
-[中文文档](README_ZH.md) | **English**
-
 A general-purpose AI Agent development framework based on **Spring Boot 3.x + AgentScope + Vue 3**, supporting rapid construction of AI agents with conversation via **HTTP API** or **DingTalk Bot**.
+
+> 🚀 **5-minute quick start**: Copy `.env.example` → `.env` → fill in `LLM_API_KEY` → `docker compose up -d` → open http://localhost:5173
+
+## Before You Start
+
+- [ ] JDK 21+ installed (`java -version`)
+- [ ] Docker Desktop installed (for quick start) **OR** MySQL 8.x running locally
+- [ ] DashScope API Key from https://dashscope.console.aliyun.com/ (free signup, free tokens)
+- [ ] Ports 8080, 5173 available (change in config if occupied)
 
 ## Features
 
@@ -38,12 +45,84 @@ A general-purpose AI Agent development framework based on **Spring Boot 3.x + Ag
 | Frontend | Vue 3 + Element Plus + DOMPurify |
 | API Documentation | springdoc-openapi (Swagger UI) |
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Browser (Vue 3)                             │
+│                     http://localhost:5173                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────────────────────────┐  │
+│  │  Login   │  │  Chat    │  │  ChatPanel                       │  │
+│  │  JWT Auth│  │  History  │  │  Markdown · Thinking · Feedback │  │
+│  └──────────┘  └──────────┘  └──────────────────────────────────┘  │
+└─────────────────────────────┬───────────────────────────────────────┘
+                              │ HTTP / SSE (Vite proxy :5173 → :8080)
+┌─────────────────────────────▼───────────────────────────────────────┐
+│                   Spring Boot 3.3 (8080)                            │
+│                                                                     │
+│  ┌───────────┐  ┌──────────────┐  ┌────────────────────────────┐  │
+│  │ Auth      │  │ Agent        │  │ RAG                        │  │
+│  │ register  │  │ chat · SSE   │  │ seed · search              │  │
+│  │ login     │  │ history      │  │                            │  │
+│  └───────────┘  └──────┬───────┘  └────────────────────────────┘  │
+│                        │                                           │
+│  ┌─────────────────────▼──────────────────────────────────────┐   │
+│  │              SupervisorAgent (ReAct)                        │   │
+│  │  Model: Qwen-Turbo  │  Prompt: Nacos hot-reload            │   │
+│  └──────────┬──────────────────────────────┬──────────────────┘   │
+│             │                              │                       │
+│  ┌──────────▼──────────┐      ┌───────────▼──────────────────┐   │
+│  │   DemoAgent         │      │   CodeAgent                  │   │
+│  │   weather · calc    │      │   code-review · api-design   │   │
+│  │   search · translate│      │   format · unit-test         │   │
+│  │   knowledge_search  │      │   knowledge_search           │   │
+│  └─────────────────────┘      └──────────────────────────────┘   │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  Services: SessionLock · RateLimit · Cleanup · SkillLoader  │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐
+│     MySQL 8.0    │  │   Redis 7    │  │  DashScope (灵积) │
+│  sessions        │  │   lock       │  │  Qwen-Max         │
+│  messages        │  │   cache      │  │  Qwen-Turbo       │
+│  users           │  │   rate-limit │  │  text-embedding   │
+└──────────────────┘  └──────────────┘  └──────────────────┘
+          │                   │
+┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐
+│   Milvus 2.4     │  │  Nacos 2.3   │  │  DingTalk Stream │
+│  ┌─ etcd ─────┐  │  │  prompts     │  │  WebSocket       │
+│  │ ┌ MinIO ─┐ │  │  │  config      │  │  AI Cards        │
+│  │ │ vectors│ │  │  │              │  │                  │
+│  │ └────────┘ │  │  └──────────────┘  └──────────────────┘
+│  └────────────┘  │
+└──────────────────┘
+```
+
+## Frontend Screenshots
+
+| Login | Chat |
+|-------|------|
+| ![Login](docs/images/login.png) | ![Chat](docs/images/chat.png) |
+
+| Thinking & Route | DingTalk Bot | Swagger API |
+|------------------|-------------|-------------|
+| ![Thinking](docs/images/thinking.png) | ![DingTalk](docs/images/dingtalk.png) | ![Swagger](docs/images/swagger.png) |
+
+| Route Timeline |
+|---------------|
+| ![Route](docs/images/route.png) |
+
 ## Project Structure
 
 ```
 smart-agent-framework/
 ├── pom.xml                    # Parent POM
-├── start.sh                   # Start/stop/restart script
+├── start.sh                   # Start/stop/restart script (Linux/Mac)
+├── start.bat                  # Start script (Windows)
 ├── smart-agent-core/          # Core module
 │   ├── agent/                 #   Supervisor, SubAgent, Memory, Session, SessionLock
 │   ├── callback/chatbot/      #   DingTalk Stream callback handling
@@ -65,7 +144,64 @@ smart-agent-framework/
 
 ## Quick Start
 
-### Prerequisites
+### 📝 First: Fill in your API Keys & Passwords
+
+**All secrets go in a single file: `.env`**
+
+```bash
+# 1. Copy the template
+cp .env.example .env
+
+# 2. Edit .env — fill in at minimum:
+#    LLM_API_KEY=sk-your-real-key    ← from https://dashscope.console.aliyun.com/
+#    DB_PASSWORD=your-db-password    ← your MySQL root password
+
+# 3. .env is in .gitignore — NEVER committed to Git
+```
+
+> **Where to find your DashScope API Key?** Visit [Alibaba Cloud DashScope Console](https://dashscope.console.aliyun.com/) → API-KEY Management. New users get free tokens.
+
+### Docker Compose (Recommended — Quick Start)
+
+```bash
+# Build and start all services (MySQL, Redis, Milvus, Nacos, App)
+docker compose up -d --build
+
+# Access:
+#   Frontend:  http://localhost:5173   (register first, then chat)
+#   Swagger:   http://localhost:8080/swagger-ui.html
+```
+
+### Windows
+
+```cmd
+REM Copy config
+copy .env.example .env
+REM Edit .env with Notepad — fill in LLM_API_KEY
+
+REM Option A: Docker Compose (recommended)
+docker compose up -d --build
+
+REM Option B: Maven (requires local MySQL)
+start.bat           REM local profile
+start.bat dev       REM dev profile
+```
+
+### Linux / macOS
+
+```bash
+cp .env.example .env
+# Edit .env with your values
+
+# Option A: Docker Compose (recommended)
+docker compose up -d --build
+
+# Option B: Maven
+./start.sh              # Foreground, local profile
+./start.sh -d -e dev    # Background, dev profile
+```
+
+### Prerequisites (Manual Setup)
 
 Dependencies are divided into "required" and "optional":
 
@@ -112,45 +248,24 @@ This creates the `smart_agent` database with three tables:
 
 ### 3. Configure Environment Variables
 
-Copy `.env.example` to `.env` and fill in real values, or `export` them directly.
-
-Minimal `.env` example:
+All configuration is in `.env` (copy from `.env.example`):
 
 ```bash
-# ===== LLM (Required) =====
-LLM_API_KEY=sk-your-dashscope-api-key
-LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-LLM_MODEL=qwen-plus
-
-# ===== Database (Required) =====
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=smart_agent
-DB_USERNAME=root
-DB_PASSWORD=your-password
-
-# ===== DingTalk Bot (Optional, default false) =====
-DINGTALK_STREAM_ENABLED=false
-
-# ===== Nacos (Optional) =====
-# NACOS_SERVER_ADDR=127.0.0.1:8848
-# NACOS_NAMESPACE=public
-
-# ===== Milvus (Optional) =====
-# MILVUS_HOST=localhost
-# MILVUS_PORT=19530
-
-# ===== Redis (Optional) =====
-# REDIS_URL=localhost
-# REDIS_PASSWORD=
+cp .env.example .env
 ```
 
-Load environment variables:
+Edit `.env` and fill in values. The app reads all config from these variables via `${VAR:default}` syntax in `application.yml`.
+
+**Minimum required** for basic chat:
 
 ```bash
-source .env
-# Or inject directly in your IDE run configuration
+LLM_API_KEY=sk-your-real-key      # Get from https://dashscope.console.aliyun.com/
+DB_PASSWORD=your-mysql-password
 ```
+
+**Docker Compose** reads `.env` automatically.  
+**Manual start** on Linux/macOS: `source .env && ./start.sh`  
+**Manual start** on Windows: set system environment variables or use IDE run config.
 
 ### 4. Start the Backend
 
@@ -199,15 +314,31 @@ npm run dev
 
 Visit http://localhost:5173 to use the chat interface.
 
+## Environments
+
+| Profile | File | Skills Source | Auth | CORS | Swagger |
+|---------|------|:---:|:---:|:---:|:---:|
+| `local` | `application-local.yml` | Local directory | Off | `*` | On |
+| `dev` | `application-dev.yml` | Git repo | Off | `*` | On |
+| `staging` | `application-staging.yml` | Git repo | On | Configured | On |
+| `prod` | `application-prod.yml` | Git repo | On | Configured | Off |
+
+Switch via: `SPRING_PROFILES_ACTIVE=dev` or `./start.sh -e dev`
+
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
+| POST | `/api/auth/register` | User registration |
+| POST | `/api/auth/login` | User login (returns JWT token) |
+| GET | `/api/auth/verify` | Verify JWT token |
 | POST | `/api/agent/chat` | Synchronous chat |
 | POST | `/api/agent/chat/stream` | Streaming chat (SSE) |
-| GET | `/api/agent/history/{userId}?page=1&size=20` | Get user conversation history (paginated, output masked) |
-| GET | `/api/agent/conversation/{userId}/{sessionId}` | Get conversation details (output masked) |
+| GET | `/api/agent/history/{userId}?page=1&size=20` | Get user conversation history |
+| GET | `/api/agent/conversation/{userId}/{sessionId}` | Get conversation details |
 | POST | `/api/agent/feedback` | Like/dislike feedback |
+| POST | `/api/rag/seed` | Seed knowledge base with sample docs |
+| GET | `/api/rag/search?query=xxx` | Search knowledge base |
 
 > **Note**: All chat endpoints apply sensitive data masking to Agent output (phone numbers and ID numbers auto-masked). Concurrent requests for the same user+session are rejected with "This session is being processed, please try again later."
 
@@ -293,26 +424,34 @@ All of the following are **required**:
 ### Step 1: Create DingTalk App & Bot
 
 1. Log in to [DingTalk Open Platform](https://open.dingtalk.com)
-2. Go to "App Development → Enterprise Internal App → Create App"
-3. Add "Bot" capability to the app
-4. Get **AppKey** and **AppSecret** from "Credentials & Basic Info"
-5. Get **RobotCode** from the "Bot" configuration page
+2. "App Development → Enterprise Internal App → Create App"
+3. Set **Stream mode** for message receiving (no callback URL needed)
+4. Add "Bot" capability to the app
+5. Get **AppKey** and **AppSecret** from "Credentials & Basic Info"
+6. Get **RobotCode** from the "Bot" configuration page
 
-### Step 2: Create AI Card Template (Optional)
+### Step 2: Required Permissions
 
-For streaming AI card replies (highly recommended for better UX):
+Go to "Permissions" and apply for ALL three:
 
-1. DingTalk Open Platform → Your App → "Message Push → Interactive Cards"
-2. Click "Create Card Template", select **AI Card** type
-3. Configure card content area (supports Markdown rendering)
-4. Publish template and copy the template ID (used as `aiCardTemplateId` in config)
-5. If personal account hasn't enabled AI Card capability, submit an application
+| Permission | Code | Purpose |
+|-----------|------|---------|
+| 企业内机器人发送消息 | `Robot.SendMessage` | Bot sends messages |
+| 互动卡片实例写 | `Card.Instance.Write` | Create AI cards |
+| AI卡片流式更新 | `Card.Streaming.Write` | Stream content updates |
 
-> Without an AI Card template, the bot still works but only sends non-streaming text replies.
+> ⚠️ Missing `Card.Streaming.Write` will cause cards to show empty or return 403.
 
-### Step 3: Configure Sensitive Info in Nacos
+### Step 3: Create AI Card Template
 
-Ensure Nacos is running, then create `system-config.json` in Group `smart-agent`:
+1. Open Platform → "Interactive Cards" → "Create Template"
+2. Select **AI Card** type (not regular card)
+3. The template must have a Markdown component with key `content` for streamed text
+4. Publish and copy the template ID (e.g., `xxxx.schema`)
+
+### Step 4: Configure in Nacos
+
+Ensure Nacos is running, create `system-config.json` in group `smart-agent`:
 
 ```json
 {
@@ -325,41 +464,14 @@ Ensure Nacos is running, then create `system-config.json` in Group `smart-agent`
 }
 ```
 
-### Step 4: Enable Stream Mode
+### Step 5: Publish and Enable
 
-```bash
-export DINGTALK_STREAM_ENABLED=true
-export NACOS_SERVER_ADDR=127.0.0.1:8848
-```
+1. "Version Management" → "Create New Version" → **Publish**
+2. Set `DINGTALK_STREAM_ENABLED=true` in `.env`
+3. Restart application
+4. Search bot name in DingTalk, start a private chat, @bot with a message
 
-Or in `application.yml`:
-
-```yaml
-dingtalk:
-  stream:
-    enabled: true
-```
-
-### Step 5: Start and Verify
-
-After starting the application:
-
-- You should see `DingTalk Stream connected` logs in `~/smart-agent/logs/log_info.log`
-- Search for the bot name in DingTalk and start a private chat
-
-### Current Limitations
-
-- **Single-chat only** (private bot messages), group chat not yet implemented
-- AI Cards require personal account capability activation; falls back to text replies when not available
-
-### Debugging Tips
-
-| Check Point | Method |
-|-------------|--------|
-| Stream connected? | Check startup logs for `DingTalk Stream` connection success messages |
-| Config applied? | Visit Nacos console to verify `system-config.json` content |
-| Bot online? | Check online status on DingTalk Open Platform "Bot" page |
-| Messages arriving? | Send a message to the bot and check application logs for callback input |
+> After publishing, you must **re-publish** every time you change permissions or template.
 
 ## Nacos Configuration (Optional)
 
@@ -471,16 +583,17 @@ mcp:
 
 | Problem | Possible Cause | Solution |
 |---------|---------------|----------|
-| DashScope connection failure / 401 at startup | API Key not configured or invalid | Check `LLM_API_KEY` env var; verify key status in [DashScope Console](https://dashscope.console.aliyun.com/) |
-| Nacos connection failure warning | Nacos not running or wrong address | Ignore if DingTalk/hot-reload not needed; otherwise start Nacos and check `NACOS_SERVER_ADDR` |
-| DingTalk bot not responding | Stream not connected | 1) Confirm `DINGTALK_STREAM_ENABLED=true`; 2) Check `system-config.json` in Nacos; 3) Check Stream connection in startup logs |
-| DingTalk only sends plain text, no streaming cards | `aiCardTemplateId` not configured or account lacks AI Card capability | Create AI Card template on DingTalk Open Platform; submit application if capability not enabled |
-| Milvus connection failure warning | Milvus not running | Ignore if RAG not needed; otherwise start Milvus and check `MILVUS_HOST/MILVUS_PORT` |
-| Database connection failure | MySQL not running or misconfigured | Check `DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD`; confirm `schema.sql` was executed |
-| Swagger not accessible | App not fully started | Check `~/smart-agent/logs/log_info.log`, wait for `Started SmartAgentApplication` log |
-| Port 8080 occupied | Another app using the port | Use `./start.sh -d -p 9090` to switch port |
-| "Session is being processed" response | Concurrent requests for same session | Session lock protection; wait for previous request to complete. If persistent, check for unreleased locks (auto-expire after 10 minutes) |
-| CORS `*` warning in non-local env | `cors.allowed-origins` not configured | Configure `cors.allowed-origins` with specific domains in `application.yml` for production |
+| Docker Desktop won't start | **WSL version too old** (common on Windows) | Run `wsl --update` in **admin** PowerShell, then restart Docker Desktop |
+| Docker pull timeout / connection refused | Docker Hub blocked by firewall (common in China) | Configure Docker mirror: Settings → Docker Engine → add `"registry-mirrors": ["https://hub.rat.dev"]` |
+| `Table 'smart_agent.xxx' doesn't exist` | Database tables not created | Set `FLYWAY_ENABLED=true` or run `docker compose exec mysql mysql -uroot -p smart_agent < schema.sql` |
+| Frontend shows "请求失败" | CORS issue or database not initialized | Check Tables exist in MySQL; restart smart-agent after DB init |
+| DashScope connection failure / 401 | API Key not configured or invalid | Check `LLM_API_KEY` in `.env`; verify key in [DashScope Console](https://dashscope.console.aliyun.com/) |
+| Nacos connection failure warning | Nacos not running or wrong address | Ignore if not using DingTalk/hot-reload; otherwise start Nacos and check `NACOS_SERVER_ADDR` |
+| DingTalk bot "已读不回" | Permissions missing or config error | 1) Check `Card.Instance.Write` AND `Card.Streaming.Write` permissions; 2) Verify `system-config.json` in Nacos; 3) **Re-publish** the app after permission changes |
+| DingTalk card shows no streaming, just jumps | Card template or `createAndDeliver` timing | Ensure AI Card template has `content` key markdown component; card lifecycle is managed by template auto state machine |
+| Milvus connection warning | Milvus not running | Ignore if RAG not needed |
+| Port 8080 occupied | Another app using the port | `./start.sh -d -p 9090` or change `docker-compose.yml` port mapping |
+| Frontend "请求失败，请重试" | Backend error (check logs) | `docker compose logs smart-agent` to see the actual error |
 
 ## CORS Configuration
 
@@ -642,6 +755,17 @@ toolkit.registration().mcpClient(mcpClient).apply();
 
 ### Use the Skill System
 
+Skills are maintained in a separate repository: **[smart-agent-framework-skills](https://github.com/lijiangbo2023/smart-agent-framework-skills)**
+
+**Available skills:**
+
+| Skill | Agent | Description |
+|-------|-------|-------------|
+| `general-assistant` | DemoAgent | Weather, translation, calculation, web search |
+| `code-review` | CodeAgent | Multi-language code review |
+| `api-designer` | CodeAgent | RESTful API design with OpenAPI |
+| `data-analyst` | Shared | Data analysis and visualization |
+
 **Classpath Skill**: Create a Skill directory under `src/main/resources/skills/`:
 
 ```
@@ -662,7 +786,15 @@ description: Skill description
 Skill content...
 ```
 
-**Git Skill**: After configuring a Git repository, use `GitSkillLoader`:
+**Git Skill**: Configure the skills repo in `.env`:
+
+```bash
+SKILL_GIT_REPO_URL=https://github.com/YOUR_USER/smart-agent-framework-skills.git
+SKILL_GIT_TOKEN=ghp_xxxxxxxxxxxx
+SKILL_GIT_BRANCH=main
+```
+
+Or use `GitSkillLoader` programmatically:
 
 ```java
 @Autowired

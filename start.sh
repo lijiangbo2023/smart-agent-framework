@@ -3,13 +3,13 @@
 # smart-agent-framework 启动脚本
 #
 # 用法:
-#   ./start.sh              前台启动 (local profile, 默认端口 8080)
-#   ./start.sh -d           后台启动 (daemon 模式)
-#   ./start.sh -p 9090      指定端口
-#   ./start.sh -e prod      指定 profile
-#   ./start.sh -d -p 9090   后台 + 自定义端口
-#   ./start.sh -s            停止后台进程
-#   ./start.sh -r            重启 (stop + start -d)
+#   ./start.sh                   前台启动 (local profile, 默认端口 8080)
+#   ./start.sh -d                后台启动 (daemon 模式)
+#   ./start.sh -p 9090           指定端口
+#   ./start.sh -e dev            指定环境 (local|dev|staging|prod)
+#   ./start.sh -d -p 9090 -e prod  后台 + 自定义端口 + 生产环境
+#   ./start.sh -s                停止后台进程
+#   ./start.sh -r                重启 (stop + start -d)
 #
 
 set -e
@@ -34,7 +34,6 @@ JVM_OPTS="${JVM_OPTS} -Xms512m -Xmx1024m"
 JVM_OPTS="${JVM_OPTS} -XX:+UseG1GC"
 JVM_OPTS="${JVM_OPTS} -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${LOG_DIR}/heapdump.hprof"
 JVM_OPTS="${JVM_OPTS} -Dfile.encoding=UTF-8"
-JVM_OPTS="${JVM_OPTS} -Djava.security.egd=file:/dev/./urandom"
 
 # ---------- 解析参数 ----------
 while getopts "dp:e:srh" opt; do
@@ -48,10 +47,16 @@ while getopts "dp:e:srh" opt; do
             echo "用法: $0 [-d] [-p port] [-e profile] [-s] [-r]"
             echo "  -d            后台运行 (daemon)"
             echo "  -p <port>     指定端口 (默认 8080)"
-            echo "  -e <profile>  Spring profile (默认 local)"
+            echo "  -e <profile>  Spring profile: local|dev|staging|prod (默认 local)"
             echo "  -s            停止后台进程"
             echo "  -r            重启 (stop + start -d)"
             echo "  -h            显示帮助"
+            echo ""
+            echo "环境说明:"
+            echo "  local    本地开发 - 读取本地 Skill 目录，认证关闭"
+            echo "  dev      日常环境 - 读取 Git Skill 仓库，认证关闭"
+            echo "  staging  预发环境 - 读取 Git Skill 仓库，认证开启"
+            echo "  prod     生产环境 - 读取 Git Skill 仓库，认证强制"
             exit 0
             ;;
         *) echo "未知参数: -$OPTARG"; exit 1 ;;
@@ -134,10 +139,7 @@ start_app() {
 
     if [ "$DAEMON" = true ]; then
         echo "[INFO] 后台启动中..."
-        nohup "$JAVA" $JVM_OPTS \
-            -jar "$JAR_PATH" \
-            $APP_OPTS \
-            > "$STARTUP_LOG" 2>&1 &
+        nohup "$JAVA" $JVM_OPTS -jar "$JAR_PATH" $APP_OPTS > "$STARTUP_LOG" 2>&1 &
         APP_PID=$!
         echo "$APP_PID" > "$PID_FILE"
         echo "[INFO] 启动成功，PID=$APP_PID"
@@ -153,9 +155,7 @@ start_app() {
         fi
     else
         echo "[INFO] 前台启动 (Ctrl+C 停止)..."
-        exec "$JAVA" $JVM_OPTS \
-            -jar "$JAR_PATH" \
-            $APP_OPTS
+        exec "$JAVA" $JVM_OPTS -jar "$JAR_PATH" $APP_OPTS
     fi
 }
 

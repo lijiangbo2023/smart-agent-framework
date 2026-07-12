@@ -30,6 +30,7 @@ public class DingTalkStreamConfig {
 
     private final SystemConfigManager systemConfigManager;
     private final DingTalkChatbotHandler chatbotHandler;
+    private final DingTalkCardCallbackHandler cardCallbackHandler;
 
     /**
      * Create and start the DingTalk Stream long-connection client.
@@ -63,9 +64,11 @@ public class DingTalkStreamConfig {
                     .custom()
                     .credential(new AuthClientCredential(appKey, appSecret))
                     .registerCallbackListener(DingTalkStreamTopics.BOT_MESSAGE_TOPIC, chatbotHandler)
+                    .registerCallbackListener(DingTalkStreamTopics.CARD_CALLBACK_TOPIC, cardCallbackHandler)
                     .build();
             client.start();
-            log.info("DingTalk Stream client started, appKey={}, topic={}", maskAppKey(appKey), DingTalkStreamTopics.BOT_MESSAGE_TOPIC);
+            log.info("DingTalk Stream client started, appKey={}, topics={}, /v1.0/card/instances/callback",
+                    maskAppKey(appKey), DingTalkStreamTopics.BOT_MESSAGE_TOPIC);
             return client;
         } catch (Exception e) {
             log.warn("Failed to start DingTalk Stream client, DingTalk features will be unavailable: {}", e.getMessage());
