@@ -1,5 +1,7 @@
 # Smart Agent Framework
 
+**English** | [中文文档](README_ZH.md)
+
 A general-purpose AI Agent development framework based on **Spring Boot 3.x + AgentScope + Vue 3**, supporting rapid construction of AI agents with conversation via **HTTP API** or **DingTalk Bot**.
 
 > 🚀 **5-minute quick start**: Copy `.env.example` → `.env` → fill in `LLM_API_KEY` → `docker compose up -d` → open http://localhost:5173
