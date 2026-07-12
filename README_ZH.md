@@ -103,22 +103,22 @@
 
 ## 前端界面
 
-<p align="center"><img src="docs/images/login.png" width="600" /></p>
+<p align="center"><img src="docs/images/login.png" width="900" /></p>
 <p align="center"><em>登录页</em></p>
 
-<p align="center"><img src="docs/images/chat.png" width="600" /></p>
+<p align="center"><img src="docs/images/chat.png" width="900" /></p>
 <p align="center"><em>对话界面</em></p>
 
-<p align="center"><img src="docs/images/thinking.png" width="600" /></p>
+<p align="center"><img src="docs/images/thinking.png" width="900" /></p>
 <p align="center"><em>思考过程 & 执行路线</em></p>
 
-<p align="center"><img src="docs/images/route.png" width="600" /></p>
+<p align="center"><img src="docs/images/route.png" width="900" /></p>
 <p align="center"><em>子Agent调用链</em></p>
 
-<p align="center"><img src="docs/images/dingtalk.png" width="600" /></p>
+<p align="center"><img src="docs/images/dingtalk.png" width="900" /></p>
 <p align="center"><em>钉钉 AI 流式卡片</em></p>
 
-<p align="center"><img src="docs/images/swagger.png" width="600" /></p>
+<p align="center"><img src="docs/images/swagger.png" width="900" /></p>
 <p align="center"><em>Swagger API</em></p>
 
 ## 目录结构

@@ -106,22 +106,22 @@ A general-purpose AI Agent development framework based on **Spring Boot 3.x + Ag
 
 ## Frontend Screenshots
 
-<p align="center"><img src="docs/images/login.png" width="600" /></p>
+<p align="center"><img src="docs/images/login.png" width="900" /></p>
 <p align="center"><em>Login Page</em></p>
 
-<p align="center"><img src="docs/images/chat.png" width="600" /></p>
+<p align="center"><img src="docs/images/chat.png" width="900" /></p>
 <p align="center"><em>Chat Interface</em></p>
 
-<p align="center"><img src="docs/images/thinking.png" width="600" /></p>
+<p align="center"><img src="docs/images/thinking.png" width="900" /></p>
 <p align="center"><em>Thinking Process &amp; Route Timeline</em></p>
 
-<p align="center"><img src="docs/images/route.png" width="600" /></p>
+<p align="center"><img src="docs/images/route.png" width="900" /></p>
 <p align="center"><em>Sub-Agent Call Chain</em></p>
 
-<p align="center"><img src="docs/images/dingtalk.png" width="600" /></p>
+<p align="center"><img src="docs/images/dingtalk.png" width="900" /></p>
 <p align="center"><em>DingTalk AI Streaming Card</em></p>
 
-<p align="center"><img src="docs/images/swagger.png" width="600" /></p>
+<p align="center"><img src="docs/images/swagger.png" width="900" /></p>
 <p align="center"><em>Swagger API</em></p>
 
 ## Project Structure
