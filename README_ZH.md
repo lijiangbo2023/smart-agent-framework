@@ -103,17 +103,20 @@
 
 ## 前端界面
 
-| 登录 | 对话 |
-|------|------|
-| ![登录](docs/images/login.png) | ![对话](docs/images/chat.png) |
-
-| 思考过程 & 执行路线 | 钉钉机器人 | Swagger API |
-|--------------------|-----------|-------------|
-| ![思考](docs/images/thinking.png) | ![钉钉](docs/images/dingtalk.png) | ![Swagger](docs/images/swagger.png) |
-
-| 执行路线 |
-|---------|
-| ![路线](docs/images/route.png) |
+<table>
+<tr>
+  <td width="50%"><img src="docs/images/login.png" width="100%" /><p align="center"><em>登录页</em></p></td>
+  <td width="50%"><img src="docs/images/chat.png" width="100%" /><p align="center"><em>对话界面</em></p></td>
+</tr>
+<tr>
+  <td width="50%"><img src="docs/images/thinking.png" width="100%" /><p align="center"><em>思考过程 & 执行路线</em></p></td>
+  <td width="50%"><img src="docs/images/route.png" width="100%" /><p align="center"><em>子Agent调用链</em></p></td>
+</tr>
+<tr>
+  <td width="50%"><img src="docs/images/dingtalk.png" width="100%" /><p align="center"><em>钉钉 AI 流式卡片</em></p></td>
+  <td width="50%"><img src="docs/images/swagger.png" width="100%" /><p align="center"><em>Swagger API</em></p></td>
+</tr>
+</table>
 
 ## 目录结构
 
